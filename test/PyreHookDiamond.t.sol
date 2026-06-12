@@ -67,6 +67,10 @@ contract PyreHookDiamondTest is Test {
         );
     }
 
+    function test_DeploysWithValidHookAddress() public {
+        assertTrue(new PyreHookDiamondDeployer().validateHookAddress(address(deployment.diamond)));
+    }
+
     function test_FeeDecayFromTenToFivePercentBuy() public {
         assertEq(FeeLogicFacet(address(deployment.diamond)).getCurrentBuyFeeBps(), 1000);
 

@@ -34,6 +34,12 @@ contract DeployPyre is Script {
         deployment.token.setBurnTracker(address(deployment.fireSpirit));
         deployment.staking.setWeightFactors(address(deployment.fireSpirit));
 
+        address initialMintTo = vm.envOr("PYRE_INITIAL_MINT_TO", address(0));
+        uint256 initialMintAmount = vm.envOr("PYRE_INITIAL_MINT_AMOUNT", uint256(0));
+        if (initialMintTo != address(0) && initialMintAmount != 0) {
+            deployment.token.mint(initialMintTo, initialMintAmount);
+        }
+
         deployment.immolatedGate = new ImmolatedGate(
             address(deployment.token), address(deployment.fireSpirit)
         );

@@ -28,8 +28,12 @@ contract PyreHookDiamondDeployer {
         DiamondInit diamondInit;
     }
 
-    /// @dev Required hook permission flags: beforeSwap | afterSwap | beforeSwapReturnDelta
-    uint160 internal constant REQUIRED_HOOK_FLAGS = (1 << 7) | (1 << 6) | (1 << 3);
+    /// @dev v4 hook permission flags encoded in the low bits of the hook address.
+    uint160 internal constant REQUIRED_HOOK_FLAGS = (1 << 13) | (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9)
+        | (1 << 8) | (1 << 7) | (1 << 6) | (1 << 5) | (1 << 4) | (1 << 3);
+    uint256 internal constant MAX_SALT_SEARCH = 100_000;
+
+    error HookSaltNotFound();
 
     function deploy(address owner, PyreHookInitParams memory initParams)
         public
@@ -55,13 +59,34 @@ contract PyreHookDiamondDeployer {
 
         bytes memory initData = abi.encodeCall(DiamondInit.init, (initParams));
 
-        deployment.diamond = new PyreHookDiamond(
-            owner, cuts, address(deployment.diamondInit), initData
+        bytes memory creationCode = abi.encodePacked(
+            type(PyreHookDiamond).creationCode,
+            abi.encode(owner, cuts, address(deployment.diamondInit), initData)
         );
+        bytes32 salt = _mineHookSalt(creationCode);
+
+        deployment.diamond = new PyreHookDiamond{salt: salt}(owner, cuts, address(deployment.diamondInit), initData);
     }
 
     function validateHookAddress(address hook) public pure returns (bool) {
         return uint160(hook) & REQUIRED_HOOK_FLAGS == REQUIRED_HOOK_FLAGS;
+    }
+
+    function _mineHookSalt(bytes memory creationCode) private view returns (bytes32 salt) {
+        bytes32 bytecodeHash = keccak256(creationCode);
+
+        for (uint256 i; i < MAX_SALT_SEARCH; ++i) {
+            salt = bytes32(i);
+            address predicted = address(
+                uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, bytecodeHash))))
+            );
+
+            if (validateHookAddress(predicted)) {
+                return salt;
+            }
+        }
+
+        revert HookSaltNotFound();
     }
 
     function _cut(address facet, bytes4[] memory selectors)
