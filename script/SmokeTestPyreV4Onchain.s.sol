@@ -11,11 +11,15 @@ import {Currency, CurrencyLibrary} from "v4-core/types/Currency.sol";
 import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {PoolSwapTest} from "v4-core/test/PoolSwapTest.sol";
 import {PoolModifyLiquidityTest} from "v4-core/test/PoolModifyLiquidityTest.sol";
+import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
+import {Actions} from "v4-periphery/src/libraries/Actions.sol";
+import {IAllowanceTransfer} from "v4-periphery/lib/permit2/src/interfaces/IAllowanceTransfer.sol";
 
 import {PyreToken} from "../src/tokens/PyreToken.sol";
 import {FeeLogicFacet} from "../src/hook/facets/FeeLogicFacet.sol";
 import {BurnFacet} from "../src/hook/facets/BurnFacet.sol";
 import {YieldDistributionFacet} from "../src/hook/facets/YieldDistributionFacet.sol";
+import {IUniswapV4Router04} from "../src/interfaces/IUniswapV4Router04.sol";
 
 contract SmokeTestPyreV4Onchain is Script {
     uint160 internal constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
@@ -26,8 +30,10 @@ contract SmokeTestPyreV4Onchain is Script {
     address internal constant DEFAULT_PYRE_TOKEN = 0xaA46dd2434dE4b06Da8D4F7f0Ace4e152EecbbA6;
     address internal constant DEFAULT_PYRE_STAKING = 0x61564EE98d9eFDc198AE6a48dFCd864C7F06A3B3;
     address internal constant DEFAULT_FIRE_SPIRIT = 0xB14Fe355E67a2c6F08a8B0291aA188B62718264A;
-    address internal constant DEFAULT_HOOK = 0x4918E08fd737C19F9b9fcd89F3ecD9d73718FffA;
+    address internal constant DEFAULT_HOOK = address(0xaB0Ae552Ee5933935e39393D32b4034E75fD3Ff8);
     address internal constant DEFAULT_TEAM = 0xF93E7518F79C2E1978D6862Dbf161270040e623E;
+    address internal constant DEFAULT_SWAP_ROUTER = 0x00000000000044a361Ae3cAc094c9D1b14Eece97;
+    address internal constant DEFAULT_MODIFY_ROUTER = 0x0000000000000000000000000000000000000000;
 
     struct Config {
         address tester;
@@ -69,13 +75,46 @@ contract SmokeTestPyreV4Onchain is Script {
         vm.startBroadcast();
 
         _tryMint(c);
-        IERC20(c.pyreToken).approve(c.modifyRouter, type(uint256).max);
-        IERC20(c.pyreToken).approve(c.swapRouter, type(uint256).max);
-
         _tryInitialize(c, key);
+        // IERC20(c.pyreToken).approve(c.modifyRouter, type(uint256).max);
+        // Permit2 configuration
+        address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+        IERC20(c.pyreToken).approve(PERMIT2, type(uint256).max);
+        
+        // Approve PositionManager via Permit2
+        IAllowanceTransfer(PERMIT2).approve(
+            c.pyreToken,
+            0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80,
+            type(uint160).max,
+            uint48(block.timestamp + 1000)
+        );
+        // Approve SwapRouter via Permit2
+        IAllowanceTransfer(PERMIT2).approve(
+            c.pyreToken,
+            c.swapRouter,
+            type(uint160).max,
+            uint48(block.timestamp + 1000)
+        );
+
+        // Add liquidity using Position Manager
         _addLiquidity(c, key);
+        
+        console2.log("=== Swap Simulation Test ===");
+        IERC20(c.pyreToken).approve(c.swapRouter, type(uint256).max);
+        
+        BalanceSnapshot memory beforeBalances = _takeBalanceSnapshot(c);
+
         _buyPyreWithEth(c, key);
+        FeeLogicFacet(c.hook).claimFees(true); // Claim buy fee
+        
+        BalanceSnapshot memory afterBuyBalances = _takeBalanceSnapshot(c);
+        _logDeltas("After Buy", beforeBalances, afterBuyBalances);
+
         _sellPyreForEth(c, key);
+        FeeLogicFacet(c.hook).claimFees(false); // Claim sell fee
+
+        BalanceSnapshot memory afterSellBalances = _takeBalanceSnapshot(c);
+        _logDeltas("After Sell", afterBuyBalances, afterSellBalances);
 
         vm.stopBroadcast();
 
@@ -85,6 +124,8 @@ contract SmokeTestPyreV4Onchain is Script {
 
     function _config() internal view returns (Config memory c) {
         c.poolManager = vm.envOr("POOL_MANAGER", DEFAULT_POOL_MANAGER);
+        c.swapRouter = vm.envOr("SWAP_ROUTER", DEFAULT_SWAP_ROUTER);
+        c.modifyRouter = vm.envOr("MODIFY_ROUTER", DEFAULT_MODIFY_ROUTER);
         c.pyreToken = vm.envOr("PYRE_TOKEN", DEFAULT_PYRE_TOKEN);
         c.staking = vm.envOr("PYRE_STAKING", DEFAULT_PYRE_STAKING);
         c.fireSpirit = vm.envOr("FIRE_SPIRIT", DEFAULT_FIRE_SPIRIT);
@@ -124,25 +165,31 @@ contract SmokeTestPyreV4Onchain is Script {
     }
 
     function _tryInitialize(Config memory c, PoolKey memory key) internal {
-        try IPoolManager(c.poolManager).initialize(key, SQRT_PRICE_1_1) returns (int24 tick) {
-            console2.log("pool initialized at tick", tick);
-        } catch {
-            console2.log("pool initialize skipped; likely already initialized");
-        }
+        IPoolManager(c.poolManager).initialize(key, SQRT_PRICE_1_1);
+        console2.log("pool initialized at tick 0");
     }
 
     function _addLiquidity(Config memory c, PoolKey memory key) internal {
-        if (c.liquidityDelta == 0) return;
+        if (c.liquidityDelta <= 0) return;
 
-        PoolModifyLiquidityTest(c.modifyRouter).modifyLiquidity{value: c.liquidityEthValue}(
+        bytes memory actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
+        bytes[] memory params = new bytes[](2);
+        
+        params[0] = abi.encode(
             key,
-            IPoolManager.ModifyLiquidityParams({
-                tickLower: c.tickLower,
-                tickUpper: c.tickUpper,
-                liquidityDelta: c.liquidityDelta,
-                salt: bytes32(0)
-            }),
-            ""
+            c.tickLower,
+            c.tickUpper,
+            uint256(c.liquidityDelta),
+            type(uint128).max, // amount0Max
+            type(uint128).max, // amount1Max
+            c.tester, // owner
+            "" // hookData
+        );
+        params[1] = abi.encode(key.currency0, key.currency1);
+
+        IPositionManager(0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80).modifyLiquidities{value: c.liquidityEthValue}(
+            abi.encode(actions, params),
+            block.timestamp + 300
         );
         console2.log("liquidity added", uint256(c.liquidityDelta));
     }
@@ -150,16 +197,14 @@ contract SmokeTestPyreV4Onchain is Script {
     function _buyPyreWithEth(Config memory c, PoolKey memory key) internal {
         if (c.ethBuyAmount == 0) return;
 
-        PoolSwapTest.TestSettings memory settings = PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
-        PoolSwapTest(c.swapRouter).swap{value: c.ethBuyAmount}(
+        IUniswapV4Router04(payable(c.swapRouter)).swapExactTokensForTokens{value: c.ethBuyAmount}(
+            c.ethBuyAmount,
+            0,
+            true, // zeroForOne
             key,
-            IPoolManager.SwapParams({
-                zeroForOne: true,
-                amountSpecified: -int256(c.ethBuyAmount),
-                sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
-            }),
-            settings,
-            ""
+            "",
+            c.tester,
+            block.timestamp + 300
         );
         console2.log("buy swap exact ETH in", c.ethBuyAmount);
     }
@@ -167,16 +212,14 @@ contract SmokeTestPyreV4Onchain is Script {
     function _sellPyreForEth(Config memory c, PoolKey memory key) internal {
         if (c.pyreSellAmount == 0) return;
 
-        PoolSwapTest.TestSettings memory settings = PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false});
-        PoolSwapTest(c.swapRouter).swap(
+        IUniswapV4Router04(payable(c.swapRouter)).swapExactTokensForTokens(
+            c.pyreSellAmount,
+            0,
+            false, // oneForZero
             key,
-            IPoolManager.SwapParams({
-                zeroForOne: false,
-                amountSpecified: -int256(c.pyreSellAmount),
-                sqrtPriceLimitX96: TickMath.MAX_SQRT_PRICE - 1
-            }),
-            settings,
-            ""
+            "",
+            c.tester,
+            block.timestamp + 300
         );
         console2.log("sell swap exact PYRE in", c.pyreSellAmount);
     }
@@ -250,5 +293,41 @@ contract SmokeTestPyreV4Onchain is Script {
         require(actualBurn == expectedSellFee, "sell burn mismatch");
 
         console2.log("accounting checks passed");
+    }
+
+    struct BalanceSnapshot {
+        uint256 testerEth;
+        uint256 testerPyre;
+        uint256 teamEth;
+        uint256 stakingEth;
+        uint256 hookEth;
+    }
+
+    function _takeBalanceSnapshot(Config memory c) internal view returns (BalanceSnapshot memory s) {
+        s.testerEth = c.tester.balance;
+        s.testerPyre = IERC20(c.pyreToken).balanceOf(c.tester);
+        s.teamEth = c.team.balance;
+        s.stakingEth = c.staking.balance;
+        s.hookEth = c.hook.balance;
+    }
+
+    function _logDeltas(string memory label, BalanceSnapshot memory beforeB, BalanceSnapshot memory afterB) internal pure {
+        console2.log("  > Balance deltas (%s):", label);
+        _logDelta("tester ETH", beforeB.testerEth, afterB.testerEth);
+        _logDelta("tester PYRE", beforeB.testerPyre, afterB.testerPyre);
+        _logDelta("team ETH", beforeB.teamEth, afterB.teamEth);
+        _logDelta("staking ETH", beforeB.stakingEth, afterB.stakingEth);
+        _logDelta("hook ETH", beforeB.hookEth, afterB.hookEth);
+        console2.log("");
+    }
+
+    function _logDelta(string memory label, uint256 beforeAmt, uint256 afterAmt) internal pure {
+        if (beforeAmt == afterAmt) {
+            console2.log("    %s: no change", label);
+        } else if (afterAmt > beforeAmt) {
+            console2.log("    %s: +%s", label, afterAmt - beforeAmt);
+        } else {
+            console2.log("    %s: -%s", label, beforeAmt - afterAmt);
+        }
     }
 }

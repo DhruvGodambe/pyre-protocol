@@ -9,6 +9,7 @@ import {LibFeeLogicStorage} from "./LibFeeLogicStorage.sol";
 import {LibYieldStorage} from "./LibYieldStorage.sol";
 
 library LibYieldDistribution {
+    using CurrencyLibrary for Currency;
     error YieldTransferFailed();
 
     event EthFeeDistributed(uint256 toYieldPool, uint256 toTeam);
@@ -24,6 +25,18 @@ library LibYieldDistribution {
         LibYieldStorage.YieldStorage storage yieldStore = LibYieldStorage.yieldStorage();
         IPoolManager poolManager = feeStore.poolManager;
 
+        poolManager.mint(address(this), uint160(Currency.unwrap(feeStore.ethCurrency)), amount);
+    }
+
+    function extractAndDistributeBuyFee() internal {
+        LibFeeLogicStorage.FeeLogicStorage storage feeStore = LibFeeLogicStorage.feeLogicStorage();
+        LibYieldStorage.YieldStorage storage yieldStore = LibYieldStorage.yieldStorage();
+        IPoolManager poolManager = feeStore.poolManager;
+
+        uint256 amount = poolManager.balanceOf(address(this), uint160(Currency.unwrap(feeStore.ethCurrency)));
+        if (amount == 0) return;
+
+        poolManager.burn(address(this), uint160(Currency.unwrap(feeStore.ethCurrency)), amount);
         poolManager.take(feeStore.ethCurrency, address(this), amount);
 
         uint256 toYield = (amount * yieldStore.yieldPoolBps) / 10_000;

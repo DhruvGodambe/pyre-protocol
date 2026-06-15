@@ -29,47 +29,95 @@ contract PyreHookDiamondDeployer {
     }
 
     /// @dev v4 hook permission flags encoded in the low bits of the hook address.
-    uint160 internal constant REQUIRED_HOOK_FLAGS = (1 << 13) | (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9)
+    uint160 internal constant ALL_HOOK_MASK = uint160((1 << 14) - 1);
+    uint160 internal constant EXACT_HOOK_FLAGS = (1 << 13) | (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9)
         | (1 << 8) | (1 << 7) | (1 << 6) | (1 << 5) | (1 << 4) | (1 << 3);
-    uint256 internal constant MAX_SALT_SEARCH = 100_000;
+    uint256 internal constant MAX_SALT_SEARCH = 10_000_000;
 
     error HookSaltNotFound();
+
+    DiamondCutFacet public diamondCutFacet;
+    DiamondLoupeFacet public diamondLoupeFacet;
+    OwnershipFacet public ownershipFacet;
+    SwapHookFacet public swapHookFacet;
+    FeeLogicFacet public feeLogicFacet;
+    BurnFacet public burnFacet;
+    YieldDistributionFacet public yieldDistributionFacet;
+    DiamondInit public diamondInit;
+
 
     function deploy(address owner, PyreHookInitParams memory initParams)
         public
         returns (Deployment memory deployment)
     {
-        deployment.diamondCutFacet = new DiamondCutFacet();
-        deployment.diamondLoupeFacet = new DiamondLoupeFacet();
-        deployment.ownershipFacet = new OwnershipFacet();
-        deployment.swapHookFacet = new SwapHookFacet();
-        deployment.feeLogicFacet = new FeeLogicFacet();
-        deployment.burnFacet = new BurnFacet();
-        deployment.yieldDistributionFacet = new YieldDistributionFacet();
-        deployment.diamondInit = new DiamondInit();
+        bytes memory creationCode = getCreationCode(owner, initParams);
+        bytes32 salt = mineSaltLocally(creationCode);
+        
+        deployment.diamond = deployDiamond(owner, initParams, salt);
+        deployment.diamondCutFacet = diamondCutFacet;
+        deployment.diamondLoupeFacet = diamondLoupeFacet;
+        deployment.ownershipFacet = ownershipFacet;
+        deployment.swapHookFacet = swapHookFacet;
+        deployment.feeLogicFacet = feeLogicFacet;
+        deployment.burnFacet = burnFacet;
+        deployment.yieldDistributionFacet = yieldDistributionFacet;
+        deployment.diamondInit = diamondInit;
+    }
+
+    function getCreationCode(address owner, PyreHookInitParams memory initParams)
+        public
+        returns (bytes memory)
+    {
+        diamondCutFacet = new DiamondCutFacet();
+        diamondLoupeFacet = new DiamondLoupeFacet();
+        ownershipFacet = new OwnershipFacet();
+        swapHookFacet = new SwapHookFacet();
+        feeLogicFacet = new FeeLogicFacet();
+        burnFacet = new BurnFacet();
+        yieldDistributionFacet = new YieldDistributionFacet();
+        diamondInit = new DiamondInit();
 
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](7);
-        cuts[0] = _cut(address(deployment.diamondCutFacet), _diamondCutSelectors());
-        cuts[1] = _cut(address(deployment.diamondLoupeFacet), _loupeSelectors());
-        cuts[2] = _cut(address(deployment.ownershipFacet), _ownershipSelectors());
-        cuts[3] = _cut(address(deployment.swapHookFacet), _hookSelectors());
-        cuts[4] = _cut(address(deployment.feeLogicFacet), _feeLogicSelectors());
-        cuts[5] = _cut(address(deployment.burnFacet), _burnSelectors());
-        cuts[6] = _cut(address(deployment.yieldDistributionFacet), _yieldSelectors());
+        cuts[0] = _cut(address(diamondCutFacet), _diamondCutSelectors());
+        cuts[1] = _cut(address(diamondLoupeFacet), _loupeSelectors());
+        cuts[2] = _cut(address(ownershipFacet), _ownershipSelectors());
+        cuts[3] = _cut(address(swapHookFacet), _hookSelectors());
+        cuts[4] = _cut(address(feeLogicFacet), _feeLogicSelectors());
+        cuts[5] = _cut(address(burnFacet), _burnSelectors());
+        cuts[6] = _cut(address(yieldDistributionFacet), _yieldSelectors());
 
         bytes memory initData = abi.encodeCall(DiamondInit.init, (initParams));
 
-        bytes memory creationCode = abi.encodePacked(
+        return abi.encodePacked(
             type(PyreHookDiamond).creationCode,
-            abi.encode(owner, cuts, address(deployment.diamondInit), initData)
+            abi.encode(owner, cuts, address(diamondInit), initData)
         );
-        bytes32 salt = _mineHookSalt(creationCode);
+    }
 
-        deployment.diamond = new PyreHookDiamond{salt: salt}(owner, cuts, address(deployment.diamondInit), initData);
+    function mineSaltLocally(bytes memory creationCode) public view returns (bytes32 salt) {
+        return _mineHookSalt(creationCode);
+    }
+
+    function deployDiamond(address owner, PyreHookInitParams memory initParams, bytes32 salt)
+        public
+        returns (PyreHookDiamond diamond)
+    {
+        IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](7);
+        cuts[0] = _cut(address(diamondCutFacet), _diamondCutSelectors());
+        cuts[1] = _cut(address(diamondLoupeFacet), _loupeSelectors());
+        cuts[2] = _cut(address(ownershipFacet), _ownershipSelectors());
+        cuts[3] = _cut(address(swapHookFacet), _hookSelectors());
+        cuts[4] = _cut(address(feeLogicFacet), _feeLogicSelectors());
+        cuts[5] = _cut(address(burnFacet), _burnSelectors());
+        cuts[6] = _cut(address(yieldDistributionFacet), _yieldSelectors());
+
+        bytes memory initData = abi.encodeCall(DiamondInit.init, (initParams));
+
+        diamond = new PyreHookDiamond{salt: salt}(owner, cuts, address(diamondInit), initData);
     }
 
     function validateHookAddress(address hook) public pure returns (bool) {
-        return uint160(hook) & REQUIRED_HOOK_FLAGS == REQUIRED_HOOK_FLAGS;
+        return (uint160(hook) & ALL_HOOK_MASK) == EXACT_HOOK_FLAGS;
     }
 
     function _mineHookSalt(bytes memory creationCode) private view returns (bytes32 salt) {
@@ -131,12 +179,14 @@ contract PyreHookDiamondDeployer {
     }
 
     function _feeLogicSelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](5);
+        s = new bytes4[](7);
         s[0] = FeeLogicFacet.configurePool.selector;
         s[1] = FeeLogicFacet.configureAntiSnipe.selector;
         s[2] = FeeLogicFacet.getCurrentBuyFeeBps.selector;
         s[3] = FeeLogicFacet.getCurrentSellFeeBps.selector;
         s[4] = FeeLogicFacet.getRegisteredPoolId.selector;
+        s[5] = FeeLogicFacet.claimFees.selector;
+        s[6] = FeeLogicFacet.unlockCallback.selector;
     }
 
     function _burnSelectors() private pure returns (bytes4[] memory s) {

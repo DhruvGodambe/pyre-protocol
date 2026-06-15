@@ -5,4 +5,8 @@ import {Currency} from "../types/Currency.sol";
 
 interface IPoolManager {
     function take(Currency currency, address to, uint256 amount) external;
+    function mint(address to, uint256 id, uint256 amount) external;
+    function burn(address from, uint256 id, uint256 amount) external;
+    function unlock(bytes calldata data) external returns (bytes memory);
+    function balanceOf(address owner, uint256 id) external view returns (uint256);
 }

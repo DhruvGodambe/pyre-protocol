@@ -26,5 +26,10 @@ contract MockPoolManager is IPoolManager {
         }
     }
 
+    function mint(address to, uint256 id, uint256 amount) external {}
+    function burn(address from, uint256 id, uint256 amount) external {}
+    function balanceOf(address owner, uint256 id) external view returns (uint256) { return 0; }
+    function unlock(bytes calldata data) external returns (bytes memory) { return new bytes(0); }
+
     receive() external payable {}
 }
