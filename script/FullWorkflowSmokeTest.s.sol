@@ -47,18 +47,18 @@ contract FullWorkflowSmokeTest is Script {
     // ---------------------------------------------------------------------------
     // Base Sepolia infrastructure
     // ---------------------------------------------------------------------------
-    uint160 internal constant SQRT_PRICE_1_1  = 79228162514264337593543950336;
-    address internal constant PERMIT2          = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    uint160 internal constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
+    address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address internal constant POSITION_MANAGER = 0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80;
 
     // Default deployed addresses
     address internal constant DEFAULT_POOL_MANAGER = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
-    address internal constant DEFAULT_SWAP_ROUTER  = 0x00000000000044a361Ae3cAc094c9D1b14Eece97;
-    address internal constant DEFAULT_PYRE_TOKEN   = 0xaA46dd2434dE4b06Da8D4F7f0Ace4e152EecbbA6;
+    address internal constant DEFAULT_SWAP_ROUTER = 0x00000000000044a361Ae3cAc094c9D1b14Eece97;
+    address internal constant DEFAULT_PYRE_TOKEN = 0xaA46dd2434dE4b06Da8D4F7f0Ace4e152EecbbA6;
     address internal constant DEFAULT_PYRE_STAKING = 0x61564EE98d9eFDc198AE6a48dFCd864C7F06A3B3;
-    address internal constant DEFAULT_FIRE_SPIRIT  = 0xB14Fe355E67a2c6F08a8B0291aA188B62718264A;
-    address internal constant DEFAULT_HOOK         = address(0xaB0Ae552Ee5933935e39393D32b4034E75fD3Ff8);
-    address internal constant DEFAULT_TEAM         = 0xF93E7518F79C2E1978D6862Dbf161270040e623E;
+    address internal constant DEFAULT_FIRE_SPIRIT = 0xB14Fe355E67a2c6F08a8B0291aA188B62718264A;
+    address internal constant DEFAULT_HOOK = address(0xaB0Ae552Ee5933935e39393D32b4034E75fD3Ff8);
+    address internal constant DEFAULT_TEAM = 0xF93E7518F79C2E1978D6862Dbf161270040e623E;
 
     // ---------------------------------------------------------------------------
     // Structs
@@ -72,10 +72,10 @@ contract FullWorkflowSmokeTest is Script {
         address fireSpirit;
         address hook;
         address team;
-        uint24  fee;
-        int24   tickSpacing;
-        int24   tickLower;
-        int24   tickUpper;
+        uint24 fee;
+        int24 tickSpacing;
+        int24 tickLower;
+        int24 tickUpper;
         uint256 liquidityDelta;
         uint256 liquidityEthValue;
         uint256 ethBuyAmount;
@@ -105,7 +105,7 @@ contract FullWorkflowSmokeTest is Script {
         PoolKey memory key = _poolKey(c);
 
         // Read fee schedule before broadcasting (view calls only)
-        uint256 buyFeeBps  = FeeLogicFacet(c.hook).getCurrentBuyFeeBps();
+        uint256 buyFeeBps = FeeLogicFacet(c.hook).getCurrentBuyFeeBps();
         uint256 sellFeeBps = FeeLogicFacet(c.hook).getCurrentSellFeeBps();
 
         GlobalSnapshot memory snap0 = _snap(c);
@@ -159,7 +159,8 @@ contract FullWorkflowSmokeTest is Script {
         GlobalSnapshot memory snapAfterBuy2 = _snap(c);
         _writeDeltaSection("After Buy 2", snapBeforeBuy2, snapAfterBuy2);
         uint256 yieldDeposited = snapAfterBuy2.stakingEth > snapBeforeBuy2.stakingEth
-            ? snapAfterBuy2.stakingEth - snapBeforeBuy2.stakingEth : 0;
+            ? snapAfterBuy2.stakingEth - snapBeforeBuy2.stakingEth
+            : 0;
         _bullet(string.concat("Staking ETH received from buy fee: ", vm.toString(yieldDeposited)));
         if (yieldDeposited > 0) {
             _ok("Staking yield routing confirmed");
@@ -227,25 +228,25 @@ contract FullWorkflowSmokeTest is Script {
     // ===========================================================================
 
     function _config() internal view returns (Config memory c) {
-        c.poolManager       = vm.envOr("POOL_MANAGER",                  DEFAULT_POOL_MANAGER);
-        c.swapRouter        = vm.envOr("SWAP_ROUTER",                   DEFAULT_SWAP_ROUTER);
-        c.pyreToken         = vm.envOr("PYRE_TOKEN",                    DEFAULT_PYRE_TOKEN);
-        c.staking           = vm.envOr("PYRE_STAKING",                  DEFAULT_PYRE_STAKING);
-        c.fireSpirit        = vm.envOr("FIRE_SPIRIT",                   DEFAULT_FIRE_SPIRIT);
-        c.hook              = vm.envOr("PYRE_HOOK",                     DEFAULT_HOOK);
-        c.team              = vm.envOr("PYRE_TEAM_WALLET",              DEFAULT_TEAM);
-        c.tester            = vm.envOr("PYRE_TESTER",                   DEFAULT_TEAM);
-        c.fee               = uint24(vm.envOr("PYRE_POOL_FEE",          uint256(3000)));
-        c.tickSpacing       = int24(int256(vm.envOr("PYRE_TICK_SPACING", int256(60))));
-        c.tickLower         = int24(int256(vm.envOr("PYRE_TICK_LOWER",   int256(-887220))));
-        c.tickUpper         = int24(int256(vm.envOr("PYRE_TICK_UPPER",   int256(887220))));
-        c.liquidityDelta    = vm.envOr("PYRE_TEST_LIQUIDITY",            uint256(5e17));
-        c.liquidityEthValue = vm.envOr("PYRE_TEST_LIQUIDITY_ETH_VALUE",  uint256(0.005 ether));
-        c.ethBuyAmount      = vm.envOr("PYRE_TEST_ETH_BUY_AMOUNT",       uint256(0.000001 ether));  // 1000 gwei
-        c.pyreSellAmount    = vm.envOr("PYRE_TEST_PYRE_SELL_AMOUNT",     uint256(0.001 ether));      // 0.001 PYRE
-        c.stakeAmount       = vm.envOr("PYRE_TEST_STAKE_AMOUNT",         uint256(100 ether));
-        c.directBurnAmount  = vm.envOr("PYRE_TEST_DIRECT_BURN_AMOUNT",   uint256(10000 ether));
-        c.lpPositionTokenId = vm.envOr("PYRE_LP_POSITION_TOKEN_ID",      uint256(0));
+        c.poolManager = vm.envOr("POOL_MANAGER", DEFAULT_POOL_MANAGER);
+        c.swapRouter = vm.envOr("SWAP_ROUTER", DEFAULT_SWAP_ROUTER);
+        c.pyreToken = vm.envOr("PYRE_TOKEN", DEFAULT_PYRE_TOKEN);
+        c.staking = vm.envOr("PYRE_STAKING", DEFAULT_PYRE_STAKING);
+        c.fireSpirit = vm.envOr("FIRE_SPIRIT", DEFAULT_FIRE_SPIRIT);
+        c.hook = vm.envOr("PYRE_HOOK", DEFAULT_HOOK);
+        c.team = vm.envOr("PYRE_TEAM_WALLET", DEFAULT_TEAM);
+        c.tester = vm.envOr("PYRE_TESTER", DEFAULT_TEAM);
+        c.fee = uint24(vm.envOr("PYRE_POOL_FEE", uint256(3000)));
+        c.tickSpacing = int24(int256(vm.envOr("PYRE_TICK_SPACING", int256(60))));
+        c.tickLower = int24(int256(vm.envOr("PYRE_TICK_LOWER", int256(-887220))));
+        c.tickUpper = int24(int256(vm.envOr("PYRE_TICK_UPPER", int256(887220))));
+        c.liquidityDelta = vm.envOr("PYRE_TEST_LIQUIDITY", uint256(5e17));
+        c.liquidityEthValue = vm.envOr("PYRE_TEST_LIQUIDITY_ETH_VALUE", uint256(0.005 ether));
+        c.ethBuyAmount = vm.envOr("PYRE_TEST_ETH_BUY_AMOUNT", uint256(0.000001 ether)); // 1000 gwei
+        c.pyreSellAmount = vm.envOr("PYRE_TEST_PYRE_SELL_AMOUNT", uint256(0.001 ether)); // 0.001 PYRE
+        c.stakeAmount = vm.envOr("PYRE_TEST_STAKE_AMOUNT", uint256(100 ether));
+        c.directBurnAmount = vm.envOr("PYRE_TEST_DIRECT_BURN_AMOUNT", uint256(10000 ether));
+        c.lpPositionTokenId = vm.envOr("PYRE_LP_POSITION_TOKEN_ID", uint256(0));
     }
 
     function _poolKey(Config memory c) internal pure returns (PoolKey memory) {
@@ -270,12 +271,10 @@ contract FullWorkflowSmokeTest is Script {
 
     function _setupApprovals(Config memory c) internal {
         IERC20(c.pyreToken).approve(PERMIT2, type(uint256).max);
-        IAllowanceTransfer(PERMIT2).approve(
-            c.pyreToken, POSITION_MANAGER, type(uint160).max, uint48(block.timestamp + 86400)
-        );
-        IAllowanceTransfer(PERMIT2).approve(
-            c.pyreToken, c.swapRouter, type(uint160).max, uint48(block.timestamp + 86400)
-        );
+        IAllowanceTransfer(PERMIT2)
+            .approve(c.pyreToken, POSITION_MANAGER, type(uint160).max, uint48(block.timestamp + 86400));
+        IAllowanceTransfer(PERMIT2)
+            .approve(c.pyreToken, c.swapRouter, type(uint160).max, uint48(block.timestamp + 86400));
         IERC20(c.pyreToken).approve(c.swapRouter, type(uint256).max);
         IERC20(c.pyreToken).approve(c.staking, type(uint256).max);
         _ok("Approvals set (PERMIT2, PositionManager, SwapRouter, Staking)");
@@ -286,8 +285,7 @@ contract FullWorkflowSmokeTest is Script {
         bytes memory actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
         bytes[] memory params = new bytes[](2);
         params[0] = abi.encode(
-            key, c.tickLower, c.tickUpper, c.liquidityDelta,
-            type(uint128).max, type(uint128).max, c.tester, ""
+            key, c.tickLower, c.tickUpper, c.liquidityDelta, type(uint128).max, type(uint128).max, c.tester, ""
         );
         params[1] = abi.encode(key.currency0, key.currency1);
         IPositionManager(POSITION_MANAGER).modifyLiquidities{value: c.liquidityEthValue}(
@@ -306,9 +304,8 @@ contract FullWorkflowSmokeTest is Script {
 
     function _sellPyreForEth(Config memory c, PoolKey memory key) internal {
         if (c.pyreSellAmount == 0) return;
-        IUniswapV4Router04(payable(c.swapRouter)).swapExactTokensForTokens(
-            c.pyreSellAmount, 0, false, key, "", c.tester, block.timestamp + 300
-        );
+        IUniswapV4Router04(payable(c.swapRouter))
+            .swapExactTokensForTokens(c.pyreSellAmount, 0, false, key, "", c.tester, block.timestamp + 300);
         _bullet(string.concat(unicode"Sell swap \u2014 PYRE in: ", vm.toString(c.pyreSellAmount), " wei"));
     }
 
@@ -348,25 +345,31 @@ contract FullWorkflowSmokeTest is Script {
             return;
         }
         uint256 pendingBefore = FireSpirit(c.fireSpirit).pendingBurn(c.tester);
-        uint256 supplyBefore  = IERC20(c.pyreToken).totalSupply();
+        uint256 supplyBefore = IERC20(c.pyreToken).totalSupply();
 
         PyreToken(c.pyreToken).burn(amount);
 
-        uint256 supplyAfter  = IERC20(c.pyreToken).totalSupply();
+        uint256 supplyAfter = IERC20(c.pyreToken).totalSupply();
         uint256 pendingAfter = FireSpirit(c.fireSpirit).pendingBurn(c.tester);
-        uint256 tokenId      = FireSpirit(c.fireSpirit).walletToTokenId(c.tester);
+        uint256 tokenId = FireSpirit(c.fireSpirit).walletToTokenId(c.tester);
 
         _bullet(string.concat("Burned PYRE: ", vm.toString(amount)));
         _bullet(string.concat("Total supply delta: -", vm.toString(supplyBefore - supplyAfter)));
         _bullet(string.concat("FireSpirit pendingBurn before: ", vm.toString(pendingBefore)));
         _bullet(string.concat("FireSpirit pendingBurn after:  ", vm.toString(pendingAfter)));
-        _bullet(string.concat("Hook totalPyreBurned (swap fees only): ", vm.toString(BurnFacet(c.hook).getTotalPyreBurned())));
+        _bullet(
+            string.concat(
+                "Hook totalPyreBurned (swap fees only): ", vm.toString(BurnFacet(c.hook).getTotalPyreBurned())
+            )
+        );
 
         if (tokenId != 0) {
             FireSpirit.Stage stage = FireSpirit(c.fireSpirit).stageOf(c.tester);
             _bullet(string.concat("FireSpirit tokenId: ", vm.toString(tokenId)));
             _bullet(string.concat("FireSpirit stage (0=EMBER 1=FLAME 2=FORGE 3=PYRE): ", vm.toString(uint8(stage))));
-            _bullet(string.concat("Cumulative burn: ", vm.toString(FireSpirit(c.fireSpirit).spiritCumulativeBurn(tokenId))));
+            _bullet(
+                string.concat("Cumulative burn: ", vm.toString(FireSpirit(c.fireSpirit).spiritCumulativeBurn(tokenId)))
+            );
         } else {
             _bullet("FireSpirit not minted yet (need >=10,000 PYRE cumulative burn)");
         }
@@ -407,7 +410,11 @@ contract FullWorkflowSmokeTest is Script {
             _mw(string.concat("| Weight before | `", vm.toString(weightBefore), "` |"));
             _mw(string.concat("| Weight after  | `", vm.toString(weightAfter), "` |"));
             _mw(string.concat("| Expected (x1.2) | `", vm.toString(expectedWeight), "` |"));
-            _mw(string.concat("| Delta | `+", vm.toString(weightAfter > weightBefore ? weightAfter - weightBefore : 0), "` |"));
+            _mw(
+                string.concat(
+                    "| Delta | `+", vm.toString(weightAfter > weightBefore ? weightAfter - weightBefore : 0), "` |"
+                )
+            );
             _mw("");
 
             require(weightAfter == expectedWeight, "LP burn bonus weight mismatch");
@@ -421,64 +428,85 @@ contract FullWorkflowSmokeTest is Script {
     // Assertions
     // ===========================================================================
 
-    function _assertBuyFee(
-        Config memory c,
-        GlobalSnapshot memory b,
-        GlobalSnapshot memory a,
-        uint256 buyFeeBps
-    ) internal {
-        uint256 expectedFee   = (c.ethBuyAmount * buyFeeBps) / 10_000;
+    function _assertBuyFee(Config memory c, GlobalSnapshot memory b, GlobalSnapshot memory a, uint256 buyFeeBps)
+        internal
+    {
+        uint256 expectedFee = (c.ethBuyAmount * buyFeeBps) / 10_000;
         uint256 expectedYield = (expectedFee * 8_000) / 10_000;
-        uint256 expectedTeam  = expectedFee - expectedYield;
-        uint256 actualYield   = a.totalEthToYield - b.totalEthToYield;
-        uint256 actualTeam    = a.totalEthToTeam  - b.totalEthToTeam;
+        uint256 expectedTeam = expectedFee - expectedYield;
+        uint256 actualYield = a.totalEthToYield - b.totalEthToYield;
+        uint256 actualTeam = a.totalEthToTeam - b.totalEthToTeam;
 
         _mw("");
         _mw("**Fee Routing Assertion**");
         _mw("");
         _mw("| Check | Expected | Actual | Status |");
         _mw("|---|---|---|---|");
-        _mw(string.concat(
-            "| Buy fee (", vm.toString(buyFeeBps), " bps) | `",
-            vm.toString(expectedFee), unicode"` | \u2014 | \u2014 |"
-        ));
-        _mw(string.concat(
-            unicode"| 80% \u2192 staking | `", vm.toString(expectedYield), "` | `",
-            vm.toString(actualYield), "` | ", actualYield == expectedYield ? unicode"\u2705 PASS" : unicode"\u274c FAIL", " |"
-        ));
-        _mw(string.concat(
-            unicode"| 20% \u2192 team | `", vm.toString(expectedTeam), "` | `",
-            vm.toString(actualTeam), "` | ", actualTeam == expectedTeam ? unicode"\u2705 PASS" : unicode"\u274c FAIL", " |"
-        ));
+        _mw(
+            string.concat(
+                "| Buy fee (",
+                vm.toString(buyFeeBps),
+                " bps) | `",
+                vm.toString(expectedFee),
+                unicode"` | \u2014 | \u2014 |"
+            )
+        );
+        _mw(
+            string.concat(
+                unicode"| 80% \u2192 staking | `",
+                vm.toString(expectedYield),
+                "` | `",
+                vm.toString(actualYield),
+                "` | ",
+                actualYield == expectedYield ? unicode"\u2705 PASS" : unicode"\u274c FAIL",
+                " |"
+            )
+        );
+        _mw(
+            string.concat(
+                unicode"| 20% \u2192 team | `",
+                vm.toString(expectedTeam),
+                "` | `",
+                vm.toString(actualTeam),
+                "` | ",
+                actualTeam == expectedTeam ? unicode"\u2705 PASS" : unicode"\u274c FAIL",
+                " |"
+            )
+        );
         _mw("");
 
         console2.log("  expected buy fee   ", expectedFee);
         console2.log("  actual yield delta ", actualYield);
         console2.log("  actual team delta  ", actualTeam);
         require(actualYield == expectedYield, "80pct yield split mismatch");
-        require(actualTeam  == expectedTeam,  "20pct team split mismatch");
+        require(actualTeam == expectedTeam, "20pct team split mismatch");
         _ok("Buy fee routing correct (80/20 split verified)");
     }
 
-    function _assertSellBurn(
-        Config memory c,
-        GlobalSnapshot memory b,
-        GlobalSnapshot memory a,
-        uint256 sellFeeBps
-    ) internal {
+    function _assertSellBurn(Config memory c, GlobalSnapshot memory b, GlobalSnapshot memory a, uint256 sellFeeBps)
+        internal
+    {
         uint256 expectedBurn = (c.pyreSellAmount * sellFeeBps) / 10_000;
-        uint256 actualBurn   = a.totalPyreBurned - b.totalPyreBurned;
+        uint256 actualBurn = a.totalPyreBurned - b.totalPyreBurned;
 
         _mw("");
         _mw("**Sell Burn Assertion**");
         _mw("");
         _mw("| Check | Expected | Actual | Status |");
         _mw("|---|---|---|---|");
-        _mw(string.concat(
-            "| Sell burn (", vm.toString(sellFeeBps), " bps) | `",
-            vm.toString(expectedBurn), "` | `", vm.toString(actualBurn), "` | ",
-            actualBurn == expectedBurn ? unicode"\u2705 PASS" : unicode"\u274c FAIL", " |"
-        ));
+        _mw(
+            string.concat(
+                "| Sell burn (",
+                vm.toString(sellFeeBps),
+                " bps) | `",
+                vm.toString(expectedBurn),
+                "` | `",
+                vm.toString(actualBurn),
+                "` | ",
+                actualBurn == expectedBurn ? unicode"\u2705 PASS" : unicode"\u274c FAIL",
+                " |"
+            )
+        );
         _mw("");
 
         console2.log("  expected PYRE burn ", expectedBurn);
@@ -494,12 +522,12 @@ contract FullWorkflowSmokeTest is Script {
     function _snap(Config memory c) internal view returns (GlobalSnapshot memory s) {
         (s.totalEthToYield, s.totalEthToTeam) = YieldDistributionFacet(c.hook).getTotalEthDistributed();
         s.totalPyreBurned = BurnFacet(c.hook).getTotalPyreBurned();
-        s.testerEth       = c.tester.balance;
-        s.testerPyre      = IERC20(c.pyreToken).balanceOf(c.tester);
-        s.teamEth         = c.team.balance;
-        s.stakingEth      = c.staking.balance;
-        s.hookEth         = c.hook.balance;
-        s.totalSupply     = IERC20(c.pyreToken).totalSupply();
+        s.testerEth = c.tester.balance;
+        s.testerPyre = IERC20(c.pyreToken).balanceOf(c.tester);
+        s.teamEth = c.team.balance;
+        s.stakingEth = c.staking.balance;
+        s.hookEth = c.hook.balance;
+        s.totalSupply = IERC20(c.pyreToken).totalSupply();
     }
 
     function _writeSnapSection(string memory label, GlobalSnapshot memory s) internal {
@@ -534,33 +562,33 @@ contract FullWorkflowSmokeTest is Script {
         _mw("");
         _mw("| Metric | Before | After | Delta |");
         _mw("|---|---|---|---|");
-        _writeRowDelta("tester ETH",       b.testerEth,       a.testerEth);
-        _writeRowDelta("tester PYRE",      b.testerPyre,      a.testerPyre);
-        _writeRowDelta("team ETH",         b.teamEth,         a.teamEth);
-        _writeRowDelta("staking ETH",      b.stakingEth,      a.stakingEth);
-        _writeRowDelta("hook ETH",         b.hookEth,         a.hookEth);
-        _writeRowDelta("totalSupply PYRE", b.totalSupply,     a.totalSupply);
-        _writeRowDelta("totalEthToYield",  b.totalEthToYield, a.totalEthToYield);
-        _writeRowDelta("totalEthToTeam",   b.totalEthToTeam,  a.totalEthToTeam);
-        _writeRowDelta("totalPyreBurned",  b.totalPyreBurned, a.totalPyreBurned);
+        _writeRowDelta("tester ETH", b.testerEth, a.testerEth);
+        _writeRowDelta("tester PYRE", b.testerPyre, a.testerPyre);
+        _writeRowDelta("team ETH", b.teamEth, a.teamEth);
+        _writeRowDelta("staking ETH", b.stakingEth, a.stakingEth);
+        _writeRowDelta("hook ETH", b.hookEth, a.hookEth);
+        _writeRowDelta("totalSupply PYRE", b.totalSupply, a.totalSupply);
+        _writeRowDelta("totalEthToYield", b.totalEthToYield, a.totalEthToYield);
+        _writeRowDelta("totalEthToTeam", b.totalEthToTeam, a.totalEthToTeam);
+        _writeRowDelta("totalPyreBurned", b.totalPyreBurned, a.totalPyreBurned);
         _mw("");
         console2.log(string.concat("  --- Delta: ", label, " ---"));
-        _ld("testerEth       ", b.testerEth,       a.testerEth);
-        _ld("testerPyre      ", b.testerPyre,      a.testerPyre);
-        _ld("teamEth         ", b.teamEth,         a.teamEth);
-        _ld("stakingEth      ", b.stakingEth,      a.stakingEth);
-        _ld("hookEth         ", b.hookEth,         a.hookEth);
-        _ld("totalSupply PYRE", b.totalSupply,     a.totalSupply);
+        _ld("testerEth       ", b.testerEth, a.testerEth);
+        _ld("testerPyre      ", b.testerPyre, a.testerPyre);
+        _ld("teamEth         ", b.teamEth, a.teamEth);
+        _ld("stakingEth      ", b.stakingEth, a.stakingEth);
+        _ld("hookEth         ", b.hookEth, a.hookEth);
+        _ld("totalSupply PYRE", b.totalSupply, a.totalSupply);
         _ld("totalEthToYield ", b.totalEthToYield, a.totalEthToYield);
-        _ld("totalEthToTeam  ", b.totalEthToTeam,  a.totalEthToTeam);
+        _ld("totalEthToTeam  ", b.totalEthToTeam, a.totalEthToTeam);
         _ld("totalPyreBurned ", b.totalPyreBurned, a.totalPyreBurned);
     }
 
     function _writeRowDelta(string memory name, uint256 b, uint256 a) internal {
         string memory delta;
-        if (a == b)     delta = "no change";
+        if (a == b) delta = "no change";
         else if (a > b) delta = string.concat("+", vm.toString(a - b));
-        else            delta = string.concat("-", vm.toString(b - a));
+        else delta = string.concat("-", vm.toString(b - a));
         _mw(string.concat("| ", name, " | `", vm.toString(b), "` | `", vm.toString(a), "` | **", delta, "** |"));
     }
 
@@ -586,9 +614,9 @@ contract FullWorkflowSmokeTest is Script {
     }
 
     function _ld(string memory label, uint256 b, uint256 a) internal pure {
-        if (a == b)     console2.log("   ", label, ": no change");
+        if (a == b) console2.log("   ", label, ": no change");
         else if (a > b) console2.log("   ", label, ": +", a - b);
-        else            console2.log("   ", label, ": -", b - a);
+        else console2.log("   ", label, ": -", b - a);
     }
 
     // ===========================================================================
@@ -601,12 +629,7 @@ contract FullWorkflowSmokeTest is Script {
     }
 
     /// @notice Initialise the markdown file with the run header.
-    function _mdInit(
-        Config memory c,
-        uint256 buyFeeBps,
-        uint256 sellFeeBps,
-        GlobalSnapshot memory snap0
-    ) internal {
+    function _mdInit(Config memory c, uint256 buyFeeBps, uint256 sellFeeBps, GlobalSnapshot memory snap0) internal {
         // Truncate / create the file
         vm.writeFile(REPORT_PATH, "");
 
