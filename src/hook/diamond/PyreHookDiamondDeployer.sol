@@ -10,6 +10,7 @@ import {SwapHookFacet} from "../facets/SwapHookFacet.sol";
 import {FeeLogicFacet} from "../facets/FeeLogicFacet.sol";
 import {BurnFacet} from "../facets/BurnFacet.sol";
 import {YieldDistributionFacet} from "../facets/YieldDistributionFacet.sol";
+import {LpBurnFacet} from "../facets/LpBurnFacet.sol";
 import {DiamondInit, PyreHookInitParams} from "../init/DiamondInit.sol";
 import {IHooks} from "../v4/interfaces/IHooks.sol";
 
@@ -25,6 +26,7 @@ contract PyreHookDiamondDeployer {
         FeeLogicFacet feeLogicFacet;
         BurnFacet burnFacet;
         YieldDistributionFacet yieldDistributionFacet;
+        LpBurnFacet lpBurnFacet;
         DiamondInit diamondInit;
     }
 
@@ -43,6 +45,7 @@ contract PyreHookDiamondDeployer {
     FeeLogicFacet public feeLogicFacet;
     BurnFacet public burnFacet;
     YieldDistributionFacet public yieldDistributionFacet;
+    LpBurnFacet public lpBurnFacet;
     DiamondInit public diamondInit;
 
 
@@ -52,7 +55,7 @@ contract PyreHookDiamondDeployer {
     {
         bytes memory creationCode = getCreationCode(owner, initParams);
         bytes32 salt = mineSaltLocally(creationCode);
-        
+
         deployment.diamond = deployDiamond(owner, initParams, salt);
         deployment.diamondCutFacet = diamondCutFacet;
         deployment.diamondLoupeFacet = diamondLoupeFacet;
@@ -61,6 +64,7 @@ contract PyreHookDiamondDeployer {
         deployment.feeLogicFacet = feeLogicFacet;
         deployment.burnFacet = burnFacet;
         deployment.yieldDistributionFacet = yieldDistributionFacet;
+        deployment.lpBurnFacet = lpBurnFacet;
         deployment.diamondInit = diamondInit;
     }
 
@@ -75,9 +79,10 @@ contract PyreHookDiamondDeployer {
         feeLogicFacet = new FeeLogicFacet();
         burnFacet = new BurnFacet();
         yieldDistributionFacet = new YieldDistributionFacet();
+        lpBurnFacet = new LpBurnFacet();
         diamondInit = new DiamondInit();
 
-        IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](7);
+        IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](8);
         cuts[0] = _cut(address(diamondCutFacet), _diamondCutSelectors());
         cuts[1] = _cut(address(diamondLoupeFacet), _loupeSelectors());
         cuts[2] = _cut(address(ownershipFacet), _ownershipSelectors());
@@ -85,6 +90,7 @@ contract PyreHookDiamondDeployer {
         cuts[4] = _cut(address(feeLogicFacet), _feeLogicSelectors());
         cuts[5] = _cut(address(burnFacet), _burnSelectors());
         cuts[6] = _cut(address(yieldDistributionFacet), _yieldSelectors());
+        cuts[7] = _cut(address(lpBurnFacet), _lpBurnSelectors());
 
         bytes memory initData = abi.encodeCall(DiamondInit.init, (initParams));
 
@@ -102,7 +108,7 @@ contract PyreHookDiamondDeployer {
         public
         returns (PyreHookDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](7);
+        IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](8);
         cuts[0] = _cut(address(diamondCutFacet), _diamondCutSelectors());
         cuts[1] = _cut(address(diamondLoupeFacet), _loupeSelectors());
         cuts[2] = _cut(address(ownershipFacet), _ownershipSelectors());
@@ -110,6 +116,7 @@ contract PyreHookDiamondDeployer {
         cuts[4] = _cut(address(feeLogicFacet), _feeLogicSelectors());
         cuts[5] = _cut(address(burnFacet), _burnSelectors());
         cuts[6] = _cut(address(yieldDistributionFacet), _yieldSelectors());
+        cuts[7] = _cut(address(lpBurnFacet), _lpBurnSelectors());
 
         bytes memory initData = abi.encodeCall(DiamondInit.init, (initParams));
 
@@ -201,5 +208,14 @@ contract PyreHookDiamondDeployer {
         s[0] = YieldDistributionFacet.configureYieldDistribution.selector;
         s[1] = YieldDistributionFacet.getYieldConfig.selector;
         s[2] = YieldDistributionFacet.getTotalEthDistributed.selector;
+    }
+
+    function _lpBurnSelectors() private pure returns (bytes4[] memory s) {
+        s = new bytes4[](5);
+        s[0] = LpBurnFacet.configureFireSpirit.selector;
+        s[1] = LpBurnFacet.getFireSpirit.selector;
+        s[2] = LpBurnFacet.getTotalLpBurns.selector;
+        s[3] = LpBurnFacet.getTotalPyreBurnedFromLp.selector;
+        s[4] = LpBurnFacet.getTotalEthRoutedFromLp.selector;
     }
 }

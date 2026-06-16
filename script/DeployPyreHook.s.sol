@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Script} from "forge-std/Script.sol";
 import {PyreHookDiamondDeployer} from "../src/hook/diamond/PyreHookDiamondDeployer.sol";
 import {PyreHookDiamond} from "../src/hook/diamond/PyreHookDiamond.sol";
+import {LpBurnFacet} from "../src/hook/facets/LpBurnFacet.sol";
 import {PyreHookInitParams} from "../src/hook/init/DiamondInit.sol";
 import {FeeLogicFacet} from "../src/hook/facets/FeeLogicFacet.sol";
 import {IHooks} from "../src/hook/v4/interfaces/IHooks.sol";
@@ -45,6 +46,7 @@ contract DeployPyreHook is Script {
             feeLogicFacet: deployer.feeLogicFacet(),
             burnFacet: deployer.burnFacet(),
             yieldDistributionFacet: deployer.yieldDistributionFacet(),
+            lpBurnFacet: deployer.lpBurnFacet(),
             diamondInit: deployer.diamondInit()
         });
 

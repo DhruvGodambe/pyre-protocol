@@ -9,6 +9,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract MockPoolManager is IPoolManager {
     using CurrencyLibrary for Currency;
 
+    // ERC-1155-style claim ticket balances used by executeBuyFee / executeSellFee
+    mapping(address => mapping(uint256 => uint256)) private _balances;
+
     function deposit(Currency currency, uint256 amount) external payable {
         if (Currency.unwrap(currency) == address(0)) {
             require(msg.value == amount);
@@ -26,10 +29,27 @@ contract MockPoolManager is IPoolManager {
         }
     }
 
-    function mint(address to, uint256 id, uint256 amount) external {}
-    function burn(address from, uint256 id, uint256 amount) external {}
-    function balanceOf(address owner, uint256 id) external view returns (uint256) { return 0; }
-    function unlock(bytes calldata data) external returns (bytes memory) { return new bytes(0); }
+    function mint(address to, uint256 id, uint256 amount) external {
+        _balances[to][id] += amount;
+    }
+
+    function burn(address from, uint256 id, uint256 amount) external {
+        _balances[from][id] -= amount;
+    }
+
+    function balanceOf(address owner, uint256 id) external view returns (uint256) {
+        return _balances[owner][id];
+    }
+
+    /// @dev Simulates V4's unlock: forwards to the caller's unlockCallback so that
+    ///      extractAndDistributeBuyFee / extractAndDistributeSellFee actually run.
+    function unlock(bytes calldata data) external returns (bytes memory) {
+        (bool success, bytes memory result) = msg.sender.call(
+            abi.encodeWithSignature("unlockCallback(bytes)", data)
+        );
+        require(success, "unlockCallback failed");
+        return result;
+    }
 
     receive() external payable {}
 }
