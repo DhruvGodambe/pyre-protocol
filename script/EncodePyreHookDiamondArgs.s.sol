@@ -43,18 +43,13 @@ contract EncodePyreHookDiamondArgs is Script {
 
     function _computeCreateAddress(address deployer, uint256 nonce) private pure returns (address) {
         require(nonce > 0 && nonce < 0x80, "nonce out of range");
-        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xd6), bytes1(0x94), deployer, uint8(nonce))))));
+        return
+            address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xd6), bytes1(0x94), deployer, uint8(nonce))))));
     }
 
-    function _cut(address facet, bytes4[] memory selectors)
-        private
-        pure
-        returns (IDiamondCut.FacetCut memory)
-    {
+    function _cut(address facet, bytes4[] memory selectors) private pure returns (IDiamondCut.FacetCut memory) {
         return IDiamondCut.FacetCut({
-            facetAddress: facet,
-            action: IDiamondCut.FacetCutAction.Add,
-            functionSelectors: selectors
+            facetAddress: facet, action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
         });
     }
 

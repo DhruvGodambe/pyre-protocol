@@ -13,10 +13,7 @@ import {Currency, CurrencyLibrary} from "../src/hook/v4/types/Currency.sol";
 import {PyreStaking} from "../src/staking/PyreStaking.sol";
 
 contract DeployPyreHook is Script {
-    function run()
-        external
-        returns (PyreHookDiamondDeployer.Deployment memory deployment, bool validHookAddress)
-    {
+    function run() external returns (PyreHookDiamondDeployer.Deployment memory deployment, bool validHookAddress) {
         address admin = vm.envOr("PYRE_ADMIN", msg.sender);
         address pyreToken = vm.envOr("PYRE_TOKEN", address(0xaA46dd2434dE4b06Da8D4F7f0Ace4e152EecbbA6));
         address pyreStaking = vm.envOr("PYRE_STAKING", address(0x61564EE98d9eFDc198AE6a48dFCd864C7F06A3B3));
@@ -58,13 +55,8 @@ contract DeployPyreHook is Script {
             hooks: IHooks(address(diamond))
         });
 
-        FeeLogicFacet(address(deployment.diamond)).configurePool(
-            poolManager,
-            poolKey,
-            poolKey.currency1,
-            poolKey.currency0,
-            launchTime
-        );
+        FeeLogicFacet(address(deployment.diamond))
+            .configurePool(poolManager, poolKey, poolKey.currency1, poolKey.currency0, launchTime);
 
         PyreStaking(payable(pyreStaking)).setYieldRouter(address(deployment.diamond));
 

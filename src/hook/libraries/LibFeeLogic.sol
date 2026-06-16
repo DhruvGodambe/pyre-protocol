@@ -30,27 +30,19 @@ library LibFeeLogic {
 
     function currentBuyFeeBps() internal view returns (uint256) {
         LibFeeLogicStorage.FeeLogicStorage storage s = LibFeeLogicStorage.feeLogicStorage();
-        return _currentFee(
-            s.launchTime, s.antiSnipeDuration, s.initialBuyFeeBps, s.finalBuyFeeBps
-        );
+        return _currentFee(s.launchTime, s.antiSnipeDuration, s.initialBuyFeeBps, s.finalBuyFeeBps);
     }
 
     function currentSellFeeBps() internal view returns (uint256) {
         LibFeeLogicStorage.FeeLogicStorage storage s = LibFeeLogicStorage.feeLogicStorage();
-        return _currentFee(
-            s.launchTime, s.antiSnipeDuration, s.initialSellFeeBps, s.finalSellFeeBps
-        );
+        return _currentFee(s.launchTime, s.antiSnipeDuration, s.initialSellFeeBps, s.finalSellFeeBps);
     }
 
-    function processBeforeSwap(PoolKey calldata key, SwapParams calldata params)
-        internal
-        returns (BeforeSwapDelta)
-    {
+    function processBeforeSwap(PoolKey calldata key, SwapParams calldata params) internal returns (BeforeSwapDelta) {
         validateHookCall(key);
         LibFeeLogicStorage.FeeLogicStorage storage s = LibFeeLogicStorage.feeLogicStorage();
 
-        Currency inputCurrency =
-            params.zeroForOne ? key.currency0 : key.currency1;
+        Currency inputCurrency = params.zeroForOne ? key.currency0 : key.currency1;
         bool isBuyPyre = Currency.unwrap(inputCurrency) == Currency.unwrap(s.ethCurrency);
         bool isSellPyre = Currency.unwrap(inputCurrency) == Currency.unwrap(s.pyreCurrency);
 
@@ -58,9 +50,8 @@ library LibFeeLogic {
             return BeforeSwapDelta.wrap(0);
         }
 
-        uint256 inputAmount = params.amountSpecified < 0
-            ? uint256(-params.amountSpecified)
-            : uint256(params.amountSpecified);
+        uint256 inputAmount =
+            params.amountSpecified < 0 ? uint256(-params.amountSpecified) : uint256(params.amountSpecified);
         uint256 feeBps = isBuyPyre ? currentBuyFeeBps() : currentSellFeeBps();
         uint256 feeAmount = (inputAmount * feeBps) / 10_000;
 
@@ -78,12 +69,11 @@ library LibFeeLogic {
         return toBeforeSwapDelta(int128(int256(feeAmount)), 0);
     }
 
-    function _currentFee(
-        uint256 launchTime,
-        uint256 duration,
-        uint256 initialBps,
-        uint256 finalBps
-    ) private view returns (uint256) {
+    function _currentFee(uint256 launchTime, uint256 duration, uint256 initialBps, uint256 finalBps)
+        private
+        view
+        returns (uint256)
+    {
         if (duration == 0 || block.timestamp >= launchTime + duration) return finalBps;
         uint256 elapsed = block.timestamp - launchTime;
         if (initialBps <= finalBps) return finalBps;

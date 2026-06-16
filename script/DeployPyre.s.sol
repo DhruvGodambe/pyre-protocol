@@ -27,8 +27,7 @@ contract DeployPyre is Script {
         MockPyreWeightFactors bootstrap = new MockPyreWeightFactors();
         deployment.staking = new PyreStaking(admin, address(deployment.token), launchTime, address(bootstrap));
 
-        deployment.fireSpirit =
-            new FireSpirit(admin, address(deployment.token), address(deployment.staking));
+        deployment.fireSpirit = new FireSpirit(admin, address(deployment.token), address(deployment.staking));
 
         deployment.token.setStakingContract(address(deployment.staking));
         deployment.token.setBurnTracker(address(deployment.fireSpirit));
@@ -40,9 +39,7 @@ contract DeployPyre is Script {
             deployment.token.mint(initialMintTo, initialMintAmount);
         }
 
-        deployment.immolatedGate = new ImmolatedGate(
-            address(deployment.token), address(deployment.fireSpirit)
-        );
+        deployment.immolatedGate = new ImmolatedGate(address(deployment.token), address(deployment.fireSpirit));
 
         vm.stopBroadcast();
         // Deploy PyreHookDiamond separately via DeployPyreHook.s.sol and call:

@@ -26,7 +26,6 @@ contract SmokeTestPyreV4Onchain is Script {
 
     address internal constant DEFAULT_POOL_MANAGER = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
 
-
     address internal constant DEFAULT_PYRE_TOKEN = 0xaA46dd2434dE4b06Da8D4F7f0Ace4e152EecbbA6;
     address internal constant DEFAULT_PYRE_STAKING = 0x61564EE98d9eFDc198AE6a48dFCd864C7F06A3B3;
     address internal constant DEFAULT_FIRE_SPIRIT = 0xB14Fe355E67a2c6F08a8B0291aA188B62718264A;
@@ -80,33 +79,30 @@ contract SmokeTestPyreV4Onchain is Script {
         // Permit2 configuration
         address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
         IERC20(c.pyreToken).approve(PERMIT2, type(uint256).max);
-        
+
         // Approve PositionManager via Permit2
-        IAllowanceTransfer(PERMIT2).approve(
-            c.pyreToken,
-            0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80,
-            type(uint160).max,
-            uint48(block.timestamp + 1000)
-        );
+        IAllowanceTransfer(PERMIT2)
+            .approve(
+                c.pyreToken,
+                0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80,
+                type(uint160).max,
+                uint48(block.timestamp + 1000)
+            );
         // Approve SwapRouter via Permit2
-        IAllowanceTransfer(PERMIT2).approve(
-            c.pyreToken,
-            c.swapRouter,
-            type(uint160).max,
-            uint48(block.timestamp + 1000)
-        );
+        IAllowanceTransfer(PERMIT2)
+            .approve(c.pyreToken, c.swapRouter, type(uint160).max, uint48(block.timestamp + 1000));
 
         // Add liquidity using Position Manager
         _addLiquidity(c, key);
-        
+
         console2.log("=== Swap Simulation Test ===");
         IERC20(c.pyreToken).approve(c.swapRouter, type(uint256).max);
-        
+
         BalanceSnapshot memory beforeBalances = _takeBalanceSnapshot(c);
 
         _buyPyreWithEth(c, key);
         FeeLogicFacet(c.hook).claimFees(true); // Claim buy fee
-        
+
         BalanceSnapshot memory afterBuyBalances = _takeBalanceSnapshot(c);
         _logDeltas("After Buy", beforeBalances, afterBuyBalances);
 
@@ -174,7 +170,7 @@ contract SmokeTestPyreV4Onchain is Script {
 
         bytes memory actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
         bytes[] memory params = new bytes[](2);
-        
+
         params[0] = abi.encode(
             key,
             c.tickLower,
@@ -188,8 +184,7 @@ contract SmokeTestPyreV4Onchain is Script {
         params[1] = abi.encode(key.currency0, key.currency1);
 
         IPositionManager(0x4B2C77d209D3405F41a037Ec6c77F7F5b8e2ca80).modifyLiquidities{value: c.liquidityEthValue}(
-            abi.encode(actions, params),
-            block.timestamp + 300
+            abi.encode(actions, params), block.timestamp + 300
         );
         console2.log("liquidity added", uint256(c.liquidityDelta));
     }
@@ -212,15 +207,16 @@ contract SmokeTestPyreV4Onchain is Script {
     function _sellPyreForEth(Config memory c, PoolKey memory key) internal {
         if (c.pyreSellAmount == 0) return;
 
-        IUniswapV4Router04(payable(c.swapRouter)).swapExactTokensForTokens(
-            c.pyreSellAmount,
-            0,
-            false, // oneForZero
-            key,
-            "",
-            c.tester,
-            block.timestamp + 300
-        );
+        IUniswapV4Router04(payable(c.swapRouter))
+            .swapExactTokensForTokens(
+                c.pyreSellAmount,
+                0,
+                false, // oneForZero
+                key,
+                "",
+                c.tester,
+                block.timestamp + 300
+            );
         console2.log("sell swap exact PYRE in", c.pyreSellAmount);
     }
 
@@ -311,7 +307,10 @@ contract SmokeTestPyreV4Onchain is Script {
         s.hookEth = c.hook.balance;
     }
 
-    function _logDeltas(string memory label, BalanceSnapshot memory beforeB, BalanceSnapshot memory afterB) internal pure {
+    function _logDeltas(string memory label, BalanceSnapshot memory beforeB, BalanceSnapshot memory afterB)
+        internal
+        pure
+    {
         console2.log("  > Balance deltas (%s):", label);
         _logDelta("tester ETH", beforeB.testerEth, afterB.testerEth);
         _logDelta("tester PYRE", beforeB.testerPyre, afterB.testerPyre);

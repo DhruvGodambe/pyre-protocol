@@ -44,9 +44,7 @@ contract MockPoolManager is IPoolManager {
     /// @dev Simulates V4's unlock: forwards to the caller's unlockCallback so that
     ///      extractAndDistributeBuyFee / extractAndDistributeSellFee actually run.
     function unlock(bytes calldata data) external returns (bytes memory) {
-        (bool success, bytes memory result) = msg.sender.call(
-            abi.encodeWithSignature("unlockCallback(bytes)", data)
-        );
+        (bool success, bytes memory result) = msg.sender.call(abi.encodeWithSignature("unlockCallback(bytes)", data));
         require(success, "unlockCallback failed");
         return result;
     }

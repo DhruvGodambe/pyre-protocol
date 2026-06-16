@@ -67,9 +67,8 @@ contract PyreHookDiamondTest is Test {
         token.setStakingContract(address(staking));
         staking.setWeightFactors(address(fireSpirit));
         staking.setYieldRouter(address(deployment.diamond));
-        FeeLogicFacet(address(deployment.diamond)).configurePool(
-            address(poolManager), poolKey, poolKey.currency1, poolKey.currency0, launchTime
-        );
+        FeeLogicFacet(address(deployment.diamond))
+            .configurePool(address(poolManager), poolKey, poolKey.currency1, poolKey.currency0, launchTime);
         fireSpirit.grantRole(fireSpirit.LP_RECORDER_ROLE(), address(deployment.diamond));
         LpBurnFacet(address(deployment.diamond)).configureFireSpirit(address(fireSpirit));
         vm.stopPrank();
@@ -105,26 +104,31 @@ contract PyreHookDiamondTest is Test {
         token.mint(trader, 100_000 ether);
 
         vm.prank(address(poolManager));
-        (bytes4 selector, BeforeSwapDelta delta,) = IHooks(address(deployment.diamond)).beforeSwap(
-            trader,
-            poolKey,
-            SwapParams({zeroForOne: true, amountSpecified: -int256(ethIn), sqrtPriceLimitX96: 0}),
-            ""
-        );
+        (bytes4 selector, BeforeSwapDelta delta,) = IHooks(address(deployment.diamond))
+            .beforeSwap(
+                trader,
+                poolKey,
+                SwapParams({zeroForOne: true, amountSpecified: -int256(ethIn), sqrtPriceLimitX96: 0}),
+                ""
+            );
 
         assertEq(selector, IHooks.beforeSwap.selector);
         assertEq(BeforeSwapDeltaLibrary.getSpecifiedDelta(delta), int128(int256(expectedFee)));
 
         vm.prank(address(poolManager));
-        IHooks(address(deployment.diamond)).afterSwap(
-            trader, poolKey, SwapParams({zeroForOne: true, amountSpecified: 0, sqrtPriceLimitX96: 0}), BalanceDeltaLibrary.ZERO_DELTA, ""
-        );
+        IHooks(address(deployment.diamond))
+            .afterSwap(
+                trader,
+                poolKey,
+                SwapParams({zeroForOne: true, amountSpecified: 0, sqrtPriceLimitX96: 0}),
+                BalanceDeltaLibrary.ZERO_DELTA,
+                ""
+            );
 
         // claimFees triggers poolManager.unlock → unlockCallback → extractAndDistributeBuyFee
         FeeLogicFacet(address(deployment.diamond)).claimFees(true);
 
-        (uint256 toYield, uint256 toTeam) =
-            YieldDistributionFacet(address(deployment.diamond)).getTotalEthDistributed();
+        (uint256 toYield, uint256 toTeam) = YieldDistributionFacet(address(deployment.diamond)).getTotalEthDistributed();
         assertEq(toYield, 0.8 ether);
         assertEq(toTeam, 0.2 ether);
     }
@@ -139,21 +143,23 @@ contract PyreHookDiamondTest is Test {
         uint256 supplyBefore = token.totalSupply();
 
         vm.prank(address(poolManager));
-        IHooks(address(deployment.diamond)).beforeSwap(
-            trader,
-            poolKey,
-            SwapParams({zeroForOne: false, amountSpecified: -int256(pyreIn), sqrtPriceLimitX96: 0}),
-            ""
-        );
+        IHooks(address(deployment.diamond))
+            .beforeSwap(
+                trader,
+                poolKey,
+                SwapParams({zeroForOne: false, amountSpecified: -int256(pyreIn), sqrtPriceLimitX96: 0}),
+                ""
+            );
 
         vm.prank(address(poolManager));
-        IHooks(address(deployment.diamond)).afterSwap(
-            trader,
-            poolKey,
-            SwapParams({zeroForOne: false, amountSpecified: 0, sqrtPriceLimitX96: 0}),
-            BalanceDeltaLibrary.ZERO_DELTA,
-            ""
-        );
+        IHooks(address(deployment.diamond))
+            .afterSwap(
+                trader,
+                poolKey,
+                SwapParams({zeroForOne: false, amountSpecified: 0, sqrtPriceLimitX96: 0}),
+                BalanceDeltaLibrary.ZERO_DELTA,
+                ""
+            );
 
         // claimFees triggers poolManager.unlock → unlockCallback → extractAndDistributeSellFee
         FeeLogicFacet(address(deployment.diamond)).claimFees(false);
@@ -168,19 +174,18 @@ contract PyreHookDiamondTest is Test {
 
         vm.prank(address(poolManager));
         vm.expectRevert();
-        IHooks(address(deployment.diamond)).beforeSwap(
-            trader, fakeKey, SwapParams({zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: 0}), ""
-        );
+        IHooks(address(deployment.diamond))
+            .beforeSwap(
+                trader, fakeKey, SwapParams({zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: 0}), ""
+            );
     }
 
     function test_RevertOnNonPoolManagerCaller() public {
         vm.expectRevert();
-        IHooks(address(deployment.diamond)).beforeSwap(
-            trader,
-            poolKey,
-            SwapParams({zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: 0}),
-            ""
-        );
+        IHooks(address(deployment.diamond))
+            .beforeSwap(
+                trader, poolKey, SwapParams({zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: 0}), ""
+            );
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -204,14 +209,15 @@ contract PyreHookDiamondTest is Test {
         BalanceDelta delta = toBalanceDelta(int128(int256(ethAmount)), int128(int256(pyreAmount)));
 
         vm.prank(address(poolManager));
-        (bytes4 selector, BalanceDelta hookDelta) = IHooks(address(deployment.diamond)).afterRemoveLiquidity(
-            trader,
-            poolKey,
-            ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
-            delta,
-            BalanceDeltaLibrary.ZERO_DELTA,
-            abi.encode(true)
-        );
+        (bytes4 selector, BalanceDelta hookDelta) = IHooks(address(deployment.diamond))
+            .afterRemoveLiquidity(
+                trader,
+                poolKey,
+                ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
+                delta,
+                BalanceDeltaLibrary.ZERO_DELTA,
+                abi.encode(true)
+            );
 
         // Correct selector returned
         assertEq(selector, IHooks.afterRemoveLiquidity.selector);
@@ -241,17 +247,18 @@ contract PyreHookDiamondTest is Test {
         BalanceDelta delta = toBalanceDelta(int128(int256(ethAmount)), 0);
 
         vm.prank(address(poolManager));
-        IHooks(address(deployment.diamond)).afterRemoveLiquidity(
-            trader,
-            poolKey,
-            ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
-            delta,
-            BalanceDeltaLibrary.ZERO_DELTA,
-            abi.encode(true)
-        );
+        IHooks(address(deployment.diamond))
+            .afterRemoveLiquidity(
+                trader,
+                poolKey,
+                ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
+                delta,
+                BalanceDeltaLibrary.ZERO_DELTA,
+                abi.encode(true)
+            );
 
         assertEq(LpBurnFacet(address(deployment.diamond)).getTotalEthRoutedFromLp(), ethAmount);
-        assertEq(address(team).balance, 2 ether);   // 20% team share
+        assertEq(address(team).balance, 2 ether); // 20% team share
     }
 
     /// @dev Without the burn flag, afterRemoveLiquidity is a no-op: ZERO_DELTA and no flagging.
@@ -267,14 +274,15 @@ contract PyreHookDiamondTest is Test {
         BalanceDelta delta = toBalanceDelta(int128(int256(ethAmount)), int128(int256(pyreAmount)));
 
         vm.prank(address(poolManager));
-        (, BalanceDelta hookDelta) = IHooks(address(deployment.diamond)).afterRemoveLiquidity(
-            trader,
-            poolKey,
-            ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
-            delta,
-            BalanceDeltaLibrary.ZERO_DELTA,
-            "" // no burn flag
-        );
+        (, BalanceDelta hookDelta) = IHooks(address(deployment.diamond))
+            .afterRemoveLiquidity(
+                trader,
+                poolKey,
+                ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
+                delta,
+                BalanceDeltaLibrary.ZERO_DELTA,
+                "" // no burn flag
+            );
 
         // Hook returns ZERO_DELTA → LP keeps their tokens
         assertEq(BalanceDelta.unwrap(hookDelta), 0);
@@ -295,24 +303,26 @@ contract PyreHookDiamondTest is Test {
         BalanceDelta delta = toBalanceDelta(0, int128(int256(pyreAmount)));
 
         vm.prank(address(poolManager));
-        IHooks(address(deployment.diamond)).afterRemoveLiquidity(
-            trader,
-            poolKey,
-            ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
-            delta,
-            BalanceDeltaLibrary.ZERO_DELTA,
-            abi.encode(true)
-        );
+        IHooks(address(deployment.diamond))
+            .afterRemoveLiquidity(
+                trader,
+                poolKey,
+                ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
+                delta,
+                BalanceDeltaLibrary.ZERO_DELTA,
+                abi.encode(true)
+            );
 
         vm.prank(address(poolManager));
-        IHooks(address(deployment.diamond)).afterRemoveLiquidity(
-            trader,
-            poolKey,
-            ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
-            delta,
-            BalanceDeltaLibrary.ZERO_DELTA,
-            abi.encode(true)
-        );
+        IHooks(address(deployment.diamond))
+            .afterRemoveLiquidity(
+                trader,
+                poolKey,
+                ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
+                delta,
+                BalanceDeltaLibrary.ZERO_DELTA,
+                abi.encode(true)
+            );
 
         assertEq(LpBurnFacet(address(deployment.diamond)).getTotalLpBurns(), 2);
         assertEq(LpBurnFacet(address(deployment.diamond)).getTotalPyreBurnedFromLp(), pyreAmount * 2);
@@ -337,14 +347,15 @@ contract PyreHookDiamondTest is Test {
 
         BalanceDelta delta = toBalanceDelta(0, int128(int256(100 ether)));
         vm.prank(address(poolManager));
-        IHooks(address(deployment.diamond)).afterRemoveLiquidity(
-            trader,
-            poolKey,
-            ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
-            delta,
-            BalanceDeltaLibrary.ZERO_DELTA,
-            abi.encode(true)
-        );
+        IHooks(address(deployment.diamond))
+            .afterRemoveLiquidity(
+                trader,
+                poolKey,
+                ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
+                delta,
+                BalanceDeltaLibrary.ZERO_DELTA,
+                abi.encode(true)
+            );
 
         // FireSpirit.flagLpBurner triggers onWeightFactorsChanged → weight refreshed
         // weight = 10k × 1× NFT × 1.2× lpBonus = 12k

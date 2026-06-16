@@ -8,8 +8,7 @@ import {LibDiamond} from "./libraries/LibDiamond.sol";
 /// @notice EIP-2535 diamond proxy for the PYRE Uniswap v4 hook. Holds ETH and all hook storage.
 contract PyreHookDiamond {
     constructor(address contractOwner, IDiamondCut.FacetCut[] memory diamondCut, address init, bytes memory initData)
-        payable
-    {
+        payable {
         LibDiamond.setContractOwner(contractOwner);
         LibDiamond.diamondCut(diamondCut, init, initData);
     }

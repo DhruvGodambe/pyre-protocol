@@ -18,12 +18,7 @@ contract DiamondLoupeFacet is IDiamondLoupe {
         }
     }
 
-    function facetFunctionSelectors(address _facet)
-        external
-        view
-        override
-        returns (bytes4[] memory selectors)
-    {
+    function facetFunctionSelectors(address _facet) external view override returns (bytes4[] memory selectors) {
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         uint256 count;
         for (uint256 i; i < ds.selectors.length; i++) {

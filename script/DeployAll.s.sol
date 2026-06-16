@@ -29,7 +29,7 @@ contract DeployAll is Script {
 
         // Step 1: Deploy the main Pyre contracts
         pyreDeployment = deployPyreContracts();
-        
+
         // Step 2: Deploy the hook contract with Pyre addresses
         (hookAddress, validHookAddress) = deployHookContract(pyreDeployment);
 
@@ -57,13 +57,11 @@ contract DeployAll is Script {
             deployment.token.mint(initialMintTo, initialMintAmount);
         }
 
-        deployment.immolatedGate = new ImmolatedGate(
-            address(deployment.token), address(deployment.fireSpirit)
-        );
+        deployment.immolatedGate = new ImmolatedGate(address(deployment.token), address(deployment.fireSpirit));
     }
 
-    function deployHookContract(PyreDeployment memory pyreDeployment) 
-        internal 
+    function deployHookContract(PyreDeployment memory pyreDeployment)
+        internal
         returns (address hookAddress, bool validHookAddress)
     {
         address admin = vm.envOr("PYRE_ADMIN", msg.sender);
@@ -90,13 +88,8 @@ contract DeployAll is Script {
             hooks: IHooks(address(hookDeployment.diamond))
         });
 
-        FeeLogicFacet(address(hookDeployment.diamond)).configurePool(
-            poolManager,
-            poolKey,
-            poolKey.currency1,
-            poolKey.currency0,
-            launchTime
-        );
+        FeeLogicFacet(address(hookDeployment.diamond))
+            .configurePool(poolManager, poolKey, poolKey.currency1, poolKey.currency0, launchTime);
 
         // Set the yield router in staking contract
         pyreDeployment.staking.setYieldRouter(address(hookDeployment.diamond));

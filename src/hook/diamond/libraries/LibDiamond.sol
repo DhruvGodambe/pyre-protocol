@@ -20,8 +20,7 @@ error CannotRemoveFunctionThatDoesNotExist(bytes4 _selector);
 error CannotRemoveImmutableFunction(bytes4 _selector);
 
 library LibDiamond {
-    bytes32 internal constant DIAMOND_STORAGE_POSITION =
-        keccak256("pyre.diamond.standard.diamond.storage");
+    bytes32 internal constant DIAMOND_STORAGE_POSITION = keccak256("pyre.diamond.standard.diamond.storage");
 
     struct FacetAddressAndSelectorPosition {
         address facetAddress;
@@ -95,8 +94,7 @@ library LibDiamond {
             if (oldFacetAddress != address(0)) {
                 revert CannotAddFunctionsToDiamondThatAlreadyExist(_functionSelectors);
             }
-            ds.selectorToFacetAndPosition[selector] =
-                FacetAddressAndSelectorPosition(_facetAddress, selectorCount);
+            ds.selectorToFacetAndPosition[selector] = FacetAddressAndSelectorPosition(_facetAddress, selectorCount);
             ds.selectors.push(selector);
             selectorCount++;
         }

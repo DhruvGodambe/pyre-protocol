@@ -181,13 +181,12 @@ contract PyreStaking is IPyreStaking, IPyreStakingHooks, IPyreStakingYield, Owna
         if (totalWeight == 0) {
             return rewardPerWeightStored;
         }
-        return rewardPerWeightStored
-            + (((_lastTimeRewardApplicable() - lastUpdateTime) * rewardRate * WAD) / totalWeight);
+        return
+            rewardPerWeightStored + (((_lastTimeRewardApplicable() - lastUpdateTime) * rewardRate * WAD) / totalWeight);
     }
 
     function earned(address account) public view returns (uint256) {
-        return ((userWeight[account] * (rewardPerWeight() - userRewardPerWeightPaid[account])) / WAD)
-            + rewards[account];
+        return ((userWeight[account] * (rewardPerWeight() - userRewardPerWeightPaid[account])) / WAD) + rewards[account];
     }
 
     function weightOf(address account) public view returns (uint256) {

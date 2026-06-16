@@ -14,9 +14,12 @@ contract YieldDistributionFacet {
 
     event YieldConfigUpdated(address pyreStaking, address teamWallet, uint256 yieldPoolBps, uint256 teamBps);
 
-    function configureYieldDistribution(address pyreStaking_, address teamWallet_, uint256 yieldPoolBps, uint256 teamBps)
-        external
-    {
+    function configureYieldDistribution(
+        address pyreStaking_,
+        address teamWallet_,
+        uint256 yieldPoolBps,
+        uint256 teamBps
+    ) external {
         LibDiamond.enforceIsContractOwner();
         if (yieldPoolBps + teamBps != 10_000) revert InvalidSplit();
         LibYieldStorage.YieldStorage storage s = LibYieldStorage.yieldStorage();

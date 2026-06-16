@@ -32,8 +32,8 @@ contract PyreHookDiamondDeployer {
 
     /// @dev v4 hook permission flags encoded in the low bits of the hook address.
     uint160 internal constant ALL_HOOK_MASK = uint160((1 << 14) - 1);
-    uint160 internal constant EXACT_HOOK_FLAGS = (1 << 13) | (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9)
-        | (1 << 8) | (1 << 7) | (1 << 6) | (1 << 5) | (1 << 4) | (1 << 3);
+    uint160 internal constant EXACT_HOOK_FLAGS = (1 << 13) | (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8)
+        | (1 << 7) | (1 << 6) | (1 << 5) | (1 << 4) | (1 << 3);
     uint256 internal constant MAX_SALT_SEARCH = 10_000_000;
 
     error HookSaltNotFound();
@@ -48,11 +48,7 @@ contract PyreHookDiamondDeployer {
     LpBurnFacet public lpBurnFacet;
     DiamondInit public diamondInit;
 
-
-    function deploy(address owner, PyreHookInitParams memory initParams)
-        public
-        returns (Deployment memory deployment)
-    {
+    function deploy(address owner, PyreHookInitParams memory initParams) public returns (Deployment memory deployment) {
         bytes memory creationCode = getCreationCode(owner, initParams);
         bytes32 salt = mineSaltLocally(creationCode);
 
@@ -68,10 +64,7 @@ contract PyreHookDiamondDeployer {
         deployment.diamondInit = diamondInit;
     }
 
-    function getCreationCode(address owner, PyreHookInitParams memory initParams)
-        public
-        returns (bytes memory)
-    {
+    function getCreationCode(address owner, PyreHookInitParams memory initParams) public returns (bytes memory) {
         diamondCutFacet = new DiamondCutFacet();
         diamondLoupeFacet = new DiamondLoupeFacet();
         ownershipFacet = new OwnershipFacet();
@@ -94,10 +87,10 @@ contract PyreHookDiamondDeployer {
 
         bytes memory initData = abi.encodeCall(DiamondInit.init, (initParams));
 
-        return abi.encodePacked(
-            type(PyreHookDiamond).creationCode,
-            abi.encode(owner, cuts, address(diamondInit), initData)
-        );
+        return
+            abi.encodePacked(
+                type(PyreHookDiamond).creationCode, abi.encode(owner, cuts, address(diamondInit), initData)
+            );
     }
 
     function mineSaltLocally(bytes memory creationCode) public view returns (bytes32 salt) {
@@ -132,9 +125,8 @@ contract PyreHookDiamondDeployer {
 
         for (uint256 i; i < MAX_SALT_SEARCH; ++i) {
             salt = bytes32(i);
-            address predicted = address(
-                uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, bytecodeHash))))
-            );
+            address predicted =
+                address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, bytecodeHash)))));
 
             if (validateHookAddress(predicted)) {
                 return salt;
@@ -144,12 +136,10 @@ contract PyreHookDiamondDeployer {
         revert HookSaltNotFound();
     }
 
-    function _cut(address facet, bytes4[] memory selectors)
-        private
-        pure
-        returns (IDiamondCut.FacetCut memory)
-    {
-        return IDiamondCut.FacetCut({facetAddress: facet, action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors});
+    function _cut(address facet, bytes4[] memory selectors) private pure returns (IDiamondCut.FacetCut memory) {
+        return IDiamondCut.FacetCut({
+            facetAddress: facet, action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
+        });
     }
 
     function _diamondCutSelectors() private pure returns (bytes4[] memory s) {

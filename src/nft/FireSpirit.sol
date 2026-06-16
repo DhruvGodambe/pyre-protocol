@@ -161,12 +161,7 @@ contract FireSpirit is ERC721, AccessControl, IBurnTracker, IPyreWeightFactors {
         return previousOwner;
     }
 
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC721, AccessControl)
-        returns (bool)
-    {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, AccessControl) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }
