@@ -6,7 +6,7 @@ import {PyreToken} from "../src/tokens/PyreToken.sol";
 import {PyreStaking} from "../src/staking/PyreStaking.sol";
 import {FireSpirit} from "../src/nft/FireSpirit.sol";
 import {MockPyreWeightFactors} from "../src/mocks/MockPyreWeightFactors.sol";
-import {PyreHookDiamondDeployer} from "../src/hook/diamond/PyreHookDiamondDeployer.sol";
+import {PyreHookDiamondDeployer} from "../script/utils/PyreHookDiamondDeployer.s.sol";
 import {PyreHookInitParams} from "../src/hook/init/DiamondInit.sol";
 import {FeeLogicFacet} from "../src/hook/facets/FeeLogicFacet.sol";
 import {BurnFacet} from "../src/hook/facets/BurnFacet.sol";

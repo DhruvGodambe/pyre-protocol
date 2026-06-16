@@ -8,7 +8,7 @@ import {FireSpirit} from "../src/nft/FireSpirit.sol";
 import {ImmolatedGate} from "../src/gate/ImmolatedGate.sol";
 import {MockPyreWeightFactors} from "../src/mocks/MockPyreWeightFactors.sol";
 
-import {PyreHookDiamondDeployer} from "../src/hook/diamond/PyreHookDiamondDeployer.sol";
+import {PyreHookDiamondDeployer} from "./utils/PyreHookDiamondDeployer.s.sol";
 import {PyreHookDiamond} from "../src/hook/diamond/PyreHookDiamond.sol";
 import {PyreHookInitParams} from "../src/hook/init/DiamondInit.sol";
 import {FeeLogicFacet} from "../src/hook/facets/FeeLogicFacet.sol";

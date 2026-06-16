@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
-import {PyreHookDiamondDeployer} from "../src/hook/diamond/PyreHookDiamondDeployer.sol";
+import {PyreHookDiamondDeployer} from "./utils/PyreHookDiamondDeployer.s.sol";
 import {PyreHookDiamond} from "../src/hook/diamond/PyreHookDiamond.sol";
 import {LpBurnFacet} from "../src/hook/facets/LpBurnFacet.sol";
 import {PyreHookInitParams} from "../src/hook/init/DiamondInit.sol";

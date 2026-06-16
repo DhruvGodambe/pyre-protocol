@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IDiamondCut} from "./interfaces/IDiamondCut.sol";
-import {PyreHookDiamond} from "./PyreHookDiamond.sol";
-import {DiamondCutFacet} from "../facets/DiamondCutFacet.sol";
-import {DiamondLoupeFacet} from "../facets/DiamondLoupeFacet.sol";
-import {OwnershipFacet} from "../facets/OwnershipFacet.sol";
-import {SwapHookFacet} from "../facets/SwapHookFacet.sol";
-import {FeeLogicFacet} from "../facets/FeeLogicFacet.sol";
-import {BurnFacet} from "../facets/BurnFacet.sol";
-import {YieldDistributionFacet} from "../facets/YieldDistributionFacet.sol";
-import {LpBurnFacet} from "../facets/LpBurnFacet.sol";
-import {DiamondInit, PyreHookInitParams} from "../init/DiamondInit.sol";
-import {IHooks} from "../v4/interfaces/IHooks.sol";
+import {IDiamondCut} from "../../src/hook/diamond/interfaces/IDiamondCut.sol";
+import {PyreHookDiamond} from "../../src/hook/diamond/PyreHookDiamond.sol";
+import {DiamondCutFacet} from "../../src/hook/facets/DiamondCutFacet.sol";
+import {DiamondLoupeFacet} from "../../src/hook/facets/DiamondLoupeFacet.sol";
+import {OwnershipFacet} from "../../src/hook/facets/OwnershipFacet.sol";
+import {SwapHookFacet} from "../../src/hook/facets/SwapHookFacet.sol";
+import {FeeLogicFacet} from "../../src/hook/facets/FeeLogicFacet.sol";
+import {BurnFacet} from "../../src/hook/facets/BurnFacet.sol";
+import {YieldDistributionFacet} from "../../src/hook/facets/YieldDistributionFacet.sol";
+import {LpBurnFacet} from "../../src/hook/facets/LpBurnFacet.sol";
+import {DiamondInit, PyreHookInitParams} from "../../src/hook/init/DiamondInit.sol";
+import {IHooks} from "../../src/hook/v4/interfaces/IHooks.sol";
 
 /// @title PyreHookDiamondDeployer
 /// @notice Helper to deploy the PYRE hook diamond with all facets attached.
-contract PyreHookDiamondDeployer {
+import {Script} from "forge-std/Script.sol";
+
+contract PyreHookDiamondDeployer is Script {
     struct Deployment {
         PyreHookDiamond diamond;
         DiamondCutFacet diamondCutFacet;
