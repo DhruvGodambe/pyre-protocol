@@ -13,7 +13,7 @@ contract PyreToken is ERC20, AccessControl, IPyreToken {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     uint256 public constant MAX_SUPPLY = 1_000_000_000 * 1e18; // 1 billion PYRE
-    uint256 public constant INITIAL_DEPLOYER_MINT_BPS = 100;   // 1% of MAX_SUPPLY
+    uint256 public constant INITIAL_DEPLOYER_MINT_BPS = 100; // 1% of MAX_SUPPLY
 
     uint256 public constant EPOCH_DURATION = 1 hours;
     uint256 public constant DRIP_DURATION = 7 days;

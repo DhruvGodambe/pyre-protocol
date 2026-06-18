@@ -12,4 +12,6 @@ interface IFireSpirit {
     function stageOf(address account) external view returns (Stage);
 
     function walletToTokenId(address wallet) external view returns (uint256);
+
+    function flagLpBurner(address wallet) external;
 }

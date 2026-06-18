@@ -34,7 +34,7 @@ contract PyreTokenTest is Test {
         token.burn(100 ether);
 
         assertEq(token.balanceOf(alice), 999_900 ether);
-        assertEq(token.totalSupply(), 999_900 ether);
+        assertEq(token.totalSupply(), 10_000_000 ether + 999_900 ether);
     }
 
     function test_DecayAfterOneEpoch() public {
@@ -166,6 +166,6 @@ contract PyreTokenTest is Test {
         token.mint(recipient, amount);
 
         assertEq(token.balanceOf(recipient), amount);
-        assertEq(token.totalSupply(), 1_000_000 ether + amount);
+        assertEq(token.totalSupply(), 10_000_000 ether + 1_000_000 ether + amount);
     }
 }

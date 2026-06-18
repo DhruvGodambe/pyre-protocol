@@ -44,6 +44,7 @@ contract FeeLogicFacet is IUnlockCallback {
         LibFeeLogicStorage.FeeLogicStorage storage s = LibFeeLogicStorage.feeLogicStorage();
         s.poolManager = IPoolManager(poolManager_);
         s.registeredPoolId = PoolKeyLibrary.toIdCalldata(key);
+        s.poolKey = key;
         s.pyreCurrency = pyreCurrency_;
         s.ethCurrency = ethCurrency_;
         s.launchTime = launchTime_;

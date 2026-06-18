@@ -6,6 +6,13 @@ import {IPoolManager} from "../v4/interfaces/IPoolManager.sol";
 import {IPyreToken} from "../../interfaces/IPyreToken.sol";
 import {LibFeeLogicStorage} from "./LibFeeLogicStorage.sol";
 import {LibBurnStorage} from "./LibBurnStorage.sol";
+import {LibYieldStorage} from "./LibYieldStorage.sol";
+import {IPyreStakingYield} from "../../interfaces/IPyreStakingYield.sol";
+import {LibYieldDistribution} from "./LibYieldDistribution.sol";
+import {PoolKey} from "../v4/types/PoolKey.sol";
+import {SwapParams} from "../v4/types/PoolOperation.sol";
+import {BalanceDelta, BalanceDeltaLibrary} from "../v4/types/BalanceDelta.sol";
+import {TickMath} from "v4-core/libraries/TickMath.sol";
 
 library LibBurn {
     using CurrencyLibrary for Currency;
@@ -29,18 +36,46 @@ library LibBurn {
 
     function extractAndDistributeSellFee() internal {
         LibFeeLogicStorage.FeeLogicStorage storage feeStore = LibFeeLogicStorage.feeLogicStorage();
-        LibBurnStorage.BurnStorage storage burnStore = LibBurnStorage.burnStorage();
+        LibYieldStorage.YieldStorage storage yieldStore = LibYieldStorage.yieldStorage();
         IPoolManager poolManager = feeStore.poolManager;
 
-        uint256 amount = poolManager.balanceOf(address(this), uint160(Currency.unwrap(feeStore.pyreCurrency)));
-        if (amount == 0) return;
+        uint256 amountToSwap = poolManager.balanceOf(address(this), uint160(Currency.unwrap(feeStore.pyreCurrency)));
+        if (amountToSwap == 0) return;
 
-        poolManager.burn(address(this), uint160(Currency.unwrap(feeStore.pyreCurrency)), amount);
-        poolManager.take(feeStore.pyreCurrency, address(this), amount);
+        PoolKey memory key = feeStore.poolKey;
+        bool zeroForOne = Currency.unwrap(key.currency0) == Currency.unwrap(feeStore.pyreCurrency);
 
-        IPyreToken(burnStore.pyreToken).burn(amount);
+        BalanceDelta delta = poolManager.swap(
+            key,
+            SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: -int256(amountToSwap),
+                sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            }),
+            ""
+        );
 
-        burnStore.totalPyreBurned += amount;
-        emit PyreFeeBurned(amount);
+        poolManager.burn(address(this), uint160(Currency.unwrap(feeStore.pyreCurrency)), amountToSwap);
+
+        int128 ethDelta = zeroForOne ? BalanceDeltaLibrary.amount1(delta) : BalanceDeltaLibrary.amount0(delta);
+        uint256 ethReceived = uint256(int256(ethDelta));
+
+        poolManager.take(feeStore.ethCurrency, address(this), ethReceived);
+
+        uint256 toYield = (ethReceived * yieldStore.yieldPoolBps) / 10_000;
+        uint256 toTeam = ethReceived - toYield;
+
+        if (toYield > 0) {
+            IPyreStakingYield(yieldStore.pyreStaking).depositYield{value: toYield}();
+            yieldStore.totalEthToYieldPool += toYield;
+        }
+
+        if (toTeam > 0) {
+            (bool success,) = payable(yieldStore.teamWallet).call{value: toTeam}("");
+            if (!success) revert LibYieldDistribution.YieldTransferFailed();
+            yieldStore.totalEthToTeam += toTeam;
+        }
+
+        emit LibYieldDistribution.EthFeeDistributed(toYield, toTeam);
     }
 }

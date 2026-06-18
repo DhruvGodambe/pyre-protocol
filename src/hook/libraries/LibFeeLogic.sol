@@ -50,8 +50,15 @@ library LibFeeLogic {
             return BeforeSwapDelta.wrap(0);
         }
 
-        uint256 inputAmount =
-            params.amountSpecified < 0 ? uint256(-params.amountSpecified) : uint256(params.amountSpecified);
+        // Only apply fee for exact-input swaps (amountSpecified < 0).
+        // Exact-output swaps (amountSpecified > 0) specify the output amount, not the input,
+        // so we can't reliably compute an input fee here without risking overflow.
+        if (params.amountSpecified >= 0) {
+            s.pendingFeeActive = false;
+            return BeforeSwapDelta.wrap(0);
+        }
+
+        uint256 inputAmount = uint256(-params.amountSpecified);
         uint256 feeBps = isBuyPyre ? currentBuyFeeBps() : currentSellFeeBps();
         uint256 feeAmount = (inputAmount * feeBps) / 10_000;
 
@@ -66,6 +73,8 @@ library LibFeeLogic {
 
         emit SwapFeeCollected(isBuyPyre, isBuyPyre, feeAmount);
 
+        // Positive specifiedAmount = hook claims this many tokens FROM the swapper's input.
+        // The manager will owe the hook this amount, which the hook then `mint`s.
         return toBeforeSwapDelta(int128(int256(feeAmount)), 0);
     }
 

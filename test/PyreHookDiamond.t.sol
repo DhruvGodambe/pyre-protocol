@@ -6,7 +6,7 @@ import {PyreToken} from "../src/tokens/PyreToken.sol";
 import {PyreStaking} from "../src/staking/PyreStaking.sol";
 import {FireSpirit} from "../src/nft/FireSpirit.sol";
 import {MockPyreWeightFactors} from "../src/mocks/MockPyreWeightFactors.sol";
-import {PyreHookDiamondDeployer} from "../script/utils/PyreHookDiamondDeployer.s.sol";
+import {PyreHookDiamondDeployer, PyreHookCreate2Deployer} from "../script/utils/PyreHookDiamondDeployer.s.sol";
 import {PyreHookInitParams} from "../src/hook/init/DiamondInit.sol";
 import {FeeLogicFacet} from "../src/hook/facets/FeeLogicFacet.sol";
 import {BurnFacet} from "../src/hook/facets/BurnFacet.sol";
@@ -21,7 +21,7 @@ import {BalanceDelta, BalanceDeltaLibrary, toBalanceDelta} from "../src/hook/v4/
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "../src/hook/v4/types/BeforeSwapDelta.sol";
 import {MockPoolManager} from "./mocks/MockPoolManager.sol";
 
-contract PyreHookDiamondTest is Test {
+contract PyreHookDiamondTest is Test, PyreHookDiamondDeployer {
     using PoolKeyLibrary for PoolKey;
     using BalanceDeltaLibrary for BalanceDelta;
 
@@ -31,8 +31,8 @@ contract PyreHookDiamondTest is Test {
     FireSpirit internal fireSpirit;
     MockPoolManager internal poolManager;
 
-    address internal admin = makeAddr("admin");
-    address internal team = makeAddr("team");
+    address internal admin = address(this);
+    address internal team = address(0x456);
     address internal trader = makeAddr("trader");
 
     PoolKey internal poolKey;
@@ -51,10 +51,7 @@ contract PyreHookDiamondTest is Test {
         PyreHookInitParams memory initParams =
             PyreHookInitParams({pyreToken: address(token), pyreStaking: address(staking), teamWallet: team});
 
-        PyreHookDiamondDeployer hookDeployer = new PyreHookDiamondDeployer();
-        bytes memory creationCode = hookDeployer.getCreationCode(admin, initParams);
-        bytes32 salt = hookDeployer.mineSaltLocally(creationCode);
-        deployment = hookDeployer.deploy(admin, initParams, salt);
+        (deployment,) = _deployHook(admin, initParams);
 
         poolKey = PoolKey({
             currency0: CurrencyLibrary.wrap(address(0)),
@@ -78,7 +75,7 @@ contract PyreHookDiamondTest is Test {
     }
 
     function test_DeploysWithValidHookAddress() public {
-        assertTrue(new PyreHookDiamondDeployer().validateHookAddress(address(deployment.diamond)));
+        assertTrue(new PyreHookCreate2Deployer().validateHookAddress(address(deployment.diamond)));
     }
 
     function test_FeeDecayFromTenToFivePercentBuy() public {
@@ -136,14 +133,15 @@ contract PyreHookDiamondTest is Test {
         assertEq(toTeam, 0.2 ether);
     }
 
-    function test_SellFeeBurnsPyre() public {
+    function test_SellFeeSwapsAndDistributesEth() public {
         uint256 pyreIn = 10_000 ether;
-        uint256 expectedFee = 2300 ether;
+        uint256 expectedFee = 2300 ether; // 23%
+        uint256 expectedEthReceived = 2300 ether; // Since our mock returns 1:1
+
+        vm.deal(address(poolManager), expectedEthReceived);
 
         vm.prank(admin);
         token.mint(address(poolManager), pyreIn);
-
-        uint256 supplyBefore = token.totalSupply();
 
         vm.prank(address(poolManager));
         IHooks(address(deployment.diamond))
@@ -167,8 +165,11 @@ contract PyreHookDiamondTest is Test {
         // claimFees triggers poolManager.unlock → unlockCallback → extractAndDistributeSellFee
         FeeLogicFacet(address(deployment.diamond)).claimFees(false);
 
-        assertEq(BurnFacet(address(deployment.diamond)).getTotalPyreBurned(), expectedFee);
-        assertEq(token.totalSupply(), supplyBefore - expectedFee);
+        (uint256 toYield, uint256 toTeam) = YieldDistributionFacet(address(deployment.diamond)).getTotalEthDistributed();
+
+        // 80% to yield, 20% to team
+        assertEq(toYield, (expectedEthReceived * 80) / 100);
+        assertEq(toTeam, (expectedEthReceived * 20) / 100);
     }
 
     function test_RevertOnUnregisteredPool() public {
@@ -195,145 +196,62 @@ contract PyreHookDiamondTest is Test {
     // LP Position Burn Tests
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// @dev Simulates a remove-liquidity call where the LP opts to burn their position.
-    ///      Verifies that PYRE is burned, ETH is routed, and the user is flagged in FireSpirit.
-    function test_LpBurnFlagsUserAndBurnsTokens() public {
-        uint256 pyreAmount = 1_000 ether;
-        uint256 ethAmount = 1 ether;
+    function test_BurnLpPositionFlagsUserAndBurnsNft() public {
+        uint256 tokenId = 123;
+        address mockPm = makeAddr("positionManager");
 
-        // Pre-fund pool manager to simulate pool reserves being returned to LP
         vm.prank(admin);
-        token.mint(address(poolManager), pyreAmount);
-        vm.deal(address(poolManager), ethAmount);
+        LpBurnFacet(address(deployment.diamond)).configurePositionManager(mockPm);
 
-        uint256 supplyBefore = token.totalSupply();
+        // Mock getPoolAndPositionInfo to return our poolKey
+        vm.mockCall(
+            mockPm, abi.encodeWithSignature("getPoolAndPositionInfo(uint256)", tokenId), abi.encode(poolKey, bytes32(0))
+        );
 
-        // delta: (currency0=ETH, currency1=PYRE) amounts the LP would have received
-        BalanceDelta delta = toBalanceDelta(int128(int256(ethAmount)), int128(int256(pyreAmount)));
-
-        vm.prank(address(poolManager));
-        (bytes4 selector, BalanceDelta hookDelta) = IHooks(address(deployment.diamond))
-            .afterRemoveLiquidity(
+        // Mock transferFrom
+        vm.mockCall(
+            mockPm,
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)",
                 trader,
-                poolKey,
-                ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
-                delta,
-                BalanceDeltaLibrary.ZERO_DELTA,
-                abi.encode(true)
-            );
+                address(0x000000000000000000000000000000000000dEaD),
+                tokenId
+            ),
+            ""
+        );
 
-        // Correct selector returned
-        assertEq(selector, IHooks.afterRemoveLiquidity.selector);
+        // Execute burn from trader
+        vm.prank(trader);
+        LpBurnFacet(address(deployment.diamond)).burnLpPosition(tokenId);
 
-        // Hook claims the full delta so LP receives nothing
-        assertEq(hookDelta.amount0(), -int128(int256(ethAmount)));
-        assertEq(hookDelta.amount1(), -int128(int256(pyreAmount)));
-
-        // PYRE was permanently burned
-        assertEq(token.totalSupply(), supplyBefore - pyreAmount);
-
-        // FireSpirit flagged the user for the +20% yield bonus
+        // Verify FireSpirit flagged the user
         assertTrue(fireSpirit.lpBurners(trader));
 
-        // Accounting updated
+        // Verify accounting
         assertEq(LpBurnFacet(address(deployment.diamond)).getTotalLpBurns(), 1);
-        assertEq(LpBurnFacet(address(deployment.diamond)).getTotalPyreBurnedFromLp(), pyreAmount);
-        assertEq(LpBurnFacet(address(deployment.diamond)).getTotalEthRoutedFromLp(), ethAmount);
     }
 
-    /// @dev ETH from the LP burn is split 80/20 identically to buy-side swap fees.
-    function test_LpBurnRoutesEthToStakingAndTeam() public {
-        uint256 ethAmount = 10 ether;
-
-        vm.deal(address(poolManager), ethAmount);
-        // No PYRE in this delta (PYRE-less position for isolated ETH routing test)
-        BalanceDelta delta = toBalanceDelta(int128(int256(ethAmount)), 0);
-
-        vm.prank(address(poolManager));
-        IHooks(address(deployment.diamond))
-            .afterRemoveLiquidity(
-                trader,
-                poolKey,
-                ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
-                delta,
-                BalanceDeltaLibrary.ZERO_DELTA,
-                abi.encode(true)
-            );
-
-        assertEq(LpBurnFacet(address(deployment.diamond)).getTotalEthRoutedFromLp(), ethAmount);
-        assertEq(address(team).balance, 2 ether); // 20% team share
-    }
-
-    /// @dev Without the burn flag, afterRemoveLiquidity is a no-op: ZERO_DELTA and no flagging.
-    function test_LpBurnWithoutFlagIsNoop() public {
-        uint256 pyreAmount = 1_000 ether;
-        uint256 ethAmount = 1 ether;
+    function test_BurnLpPositionRevertsIfWrongPool() public {
+        uint256 tokenId = 456;
+        address mockPm = makeAddr("positionManager");
 
         vm.prank(admin);
-        token.mint(address(poolManager), pyreAmount);
-        vm.deal(address(poolManager), ethAmount);
+        LpBurnFacet(address(deployment.diamond)).configurePositionManager(mockPm);
 
-        uint256 supplyBefore = token.totalSupply();
-        BalanceDelta delta = toBalanceDelta(int128(int256(ethAmount)), int128(int256(pyreAmount)));
+        // Create a fake pool key with a different hook address
+        PoolKey memory fakeKey = poolKey;
+        fakeKey.hooks = IHooks(address(0x999));
 
-        vm.prank(address(poolManager));
-        (, BalanceDelta hookDelta) = IHooks(address(deployment.diamond))
-            .afterRemoveLiquidity(
-                trader,
-                poolKey,
-                ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
-                delta,
-                BalanceDeltaLibrary.ZERO_DELTA,
-                "" // no burn flag
-            );
+        vm.mockCall(
+            mockPm, abi.encodeWithSignature("getPoolAndPositionInfo(uint256)", tokenId), abi.encode(fakeKey, bytes32(0))
+        );
 
-        // Hook returns ZERO_DELTA → LP keeps their tokens
-        assertEq(BalanceDelta.unwrap(hookDelta), 0);
-
-        // Nothing burned, nobody flagged
-        assertEq(token.totalSupply(), supplyBefore);
-        assertFalse(fireSpirit.lpBurners(trader));
-        assertEq(LpBurnFacet(address(deployment.diamond)).getTotalLpBurns(), 0);
+        vm.prank(trader);
+        vm.expectRevert("Not a Pyre LP token");
+        LpBurnFacet(address(deployment.diamond)).burnLpPosition(tokenId);
     }
 
-    /// @dev LP burn can be repeated; each removal is independent.
-    function test_LpBurnCanBePerformedMultipleTimes() public {
-        uint256 pyreAmount = 500 ether;
-
-        vm.prank(admin);
-        token.mint(address(poolManager), pyreAmount * 2);
-
-        BalanceDelta delta = toBalanceDelta(0, int128(int256(pyreAmount)));
-
-        vm.prank(address(poolManager));
-        IHooks(address(deployment.diamond))
-            .afterRemoveLiquidity(
-                trader,
-                poolKey,
-                ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
-                delta,
-                BalanceDeltaLibrary.ZERO_DELTA,
-                abi.encode(true)
-            );
-
-        vm.prank(address(poolManager));
-        IHooks(address(deployment.diamond))
-            .afterRemoveLiquidity(
-                trader,
-                poolKey,
-                ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
-                delta,
-                BalanceDeltaLibrary.ZERO_DELTA,
-                abi.encode(true)
-            );
-
-        assertEq(LpBurnFacet(address(deployment.diamond)).getTotalLpBurns(), 2);
-        assertEq(LpBurnFacet(address(deployment.diamond)).getTotalPyreBurnedFromLp(), pyreAmount * 2);
-        assertTrue(fireSpirit.lpBurners(trader));
-    }
-
-    /// @dev Staking weight increases by 20% for an LP burner (FireSpirit lpBurnBonus).
-    function test_LpBurnBoostAppliedToStakingWeight() public {
+    function test_BurnLpPositionBoostAppliedToStakingWeight() public {
         uint256 stakeAmount = 10_000 ether;
 
         vm.prank(admin);
@@ -344,23 +262,29 @@ contract PyreHookDiamondTest is Test {
         staking.stake(stakeAmount);
         assertEq(staking.weightOf(trader), stakeAmount);
 
-        // Trigger LP burn → flag user in FireSpirit
+        // Perform LP burn
+        uint256 tokenId = 789;
+        address mockPm = makeAddr("positionManager");
         vm.prank(admin);
-        token.mint(address(poolManager), 100 ether);
+        LpBurnFacet(address(deployment.diamond)).configurePositionManager(mockPm);
 
-        BalanceDelta delta = toBalanceDelta(0, int128(int256(100 ether)));
-        vm.prank(address(poolManager));
-        IHooks(address(deployment.diamond))
-            .afterRemoveLiquidity(
+        vm.mockCall(
+            mockPm, abi.encodeWithSignature("getPoolAndPositionInfo(uint256)", tokenId), abi.encode(poolKey, bytes32(0))
+        );
+        vm.mockCall(
+            mockPm,
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)",
                 trader,
-                poolKey,
-                ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: -1e18, salt: bytes32(0)}),
-                delta,
-                BalanceDeltaLibrary.ZERO_DELTA,
-                abi.encode(true)
-            );
+                address(0x000000000000000000000000000000000000dEaD),
+                tokenId
+            ),
+            ""
+        );
 
-        // FireSpirit.flagLpBurner triggers onWeightFactorsChanged → weight refreshed
+        vm.prank(trader);
+        LpBurnFacet(address(deployment.diamond)).burnLpPosition(tokenId);
+
         // weight = 10k × 1× NFT × 1.2× lpBonus = 12k
         assertEq(staking.weightOf(trader), stakeAmount * 12 / 10);
     }

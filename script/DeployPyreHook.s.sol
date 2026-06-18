@@ -10,32 +10,24 @@ import {PoolKey} from "../src/hook/v4/types/PoolKey.sol";
 import {Currency, CurrencyLibrary} from "../src/hook/v4/types/Currency.sol";
 import {PyreStaking} from "../src/staking/PyreStaking.sol";
 
-contract DeployPyreHook is Script {
+contract DeployPyreHook is Script, PyreHookDiamondDeployer {
     function run() external returns (PyreHookDiamondDeployer.Deployment memory deployment, bool validHookAddress) {
         address admin = vm.envOr("PYRE_ADMIN", msg.sender);
-        address pyreToken = vm.envOr("PYRE_TOKEN", address(0xaA46dd2434dE4b06Da8D4F7f0Ace4e152EecbbA6));
-        address pyreStaking = vm.envOr("PYRE_STAKING", address(0x61564EE98d9eFDc198AE6a48dFCd864C7F06A3B3));
-        address teamWallet = vm.envOr("PYRE_TEAM_WALLET", address(0xF93E7518F79C2E1978D6862Dbf161270040e623E));
-        address poolManager = vm.envOr("POOL_MANAGER", address(0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408));
+        address pyreToken = vm.envAddress("PYRE_TOKEN");
+        address pyreStaking = vm.envAddress("PYRE_STAKING");
+        address teamWallet = vm.envAddress("PYRE_TEAM_WALLET");
+        address poolManager = vm.envAddress("POOL_MANAGER");
         uint256 launchTime = vm.envOr("PYRE_LAUNCH_TIME", block.timestamp);
 
         PyreHookInitParams memory initParams =
             PyreHookInitParams({pyreToken: pyreToken, pyreStaking: address(pyreStaking), teamWallet: teamWallet});
 
-        // Phase 1: Deploy deployer contract + all diamond facets
         vm.startBroadcast();
-        PyreHookDiamondDeployer deployer = new PyreHookDiamondDeployer();
-        bytes memory creationCode = deployer.getCreationCode(admin, initParams);
-        vm.stopBroadcast();
-
-        // Phase 2: Mine salt locally — view call, NOT a transaction.
-        // Must run outside broadcast: loops up to 10M keccak256 ops which would OOG on-chain.
-        bytes32 salt = deployer.mineSaltLocally(creationCode);
-
-        // Phase 3: Deploy diamond + configure pool
-        vm.startBroadcast();
-        deployment = deployer.deploy(admin, initParams, salt);
-        validHookAddress = deployer.validateHookAddress(address(deployment.diamond));
+        // _deployHook: deploys tiny CREATE2 helper on-chain, then deploys all facets,
+        // calls mineSalt() as a view on the on-chain deployer (no address(this) in script),
+        // then deploys the diamond via CREATE2.
+        (deployment,) = _deployHook(admin, initParams);
+        validHookAddress = _validateHookAddress(address(deployment.diamond));
 
         PoolKey memory poolKey = PoolKey({
             currency0: CurrencyLibrary.wrap(address(0)),

@@ -15,25 +15,25 @@ contract QuoteSwapTest is Script {
 
     // Latest deployed addresses — override via env vars if redeployed
     address internal constant DEFAULT_PYRE_TOKEN = 0xCde4023f09E607bb01EE578197FA34a013a92e51;
-    address internal constant DEFAULT_HOOK       = address(0); // set PYRE_HOOK env var
+    address internal constant DEFAULT_HOOK = address(0); // set PYRE_HOOK env var
 
     function run() external {
-        address quoter    = vm.envOr("V4_QUOTER",          DEFAULT_V4_QUOTER);
-        address pyreToken = vm.envOr("PYRE_TOKEN",         DEFAULT_PYRE_TOKEN);
-        address hook      = vm.envOr("PYRE_HOOK",          DEFAULT_HOOK);
-        uint24  fee       = uint24(vm.envOr("PYRE_POOL_FEE",      uint256(3000)));
-        int24   spacing   = int24(int256(vm.envOr("PYRE_TICK_SPACING", int256(60))));
-        uint128 ethIn     = uint128(vm.envOr("QUOTE_ETH_IN",  uint256(0.01 ether)));
-        uint128 pyreIn    = uint128(vm.envOr("QUOTE_PYRE_IN", uint256(100 ether)));
+        address quoter = vm.envOr("V4_QUOTER", DEFAULT_V4_QUOTER);
+        address pyreToken = vm.envOr("PYRE_TOKEN", DEFAULT_PYRE_TOKEN);
+        address hook = vm.envOr("PYRE_HOOK", DEFAULT_HOOK);
+        uint24 fee = uint24(vm.envOr("PYRE_POOL_FEE", uint256(3000)));
+        int24 spacing = int24(int256(vm.envOr("PYRE_TICK_SPACING", int256(60))));
+        uint128 ethIn = uint128(vm.envOr("QUOTE_ETH_IN", uint256(0.01 ether)));
+        uint128 pyreIn = uint128(vm.envOr("QUOTE_PYRE_IN", uint256(100 ether)));
 
         require(hook != address(0), "Set PYRE_HOOK env var to your deployed hook address");
 
         PoolKey memory key = PoolKey({
-            currency0:   Currency.wrap(address(0)),
-            currency1:   Currency.wrap(pyreToken),
-            fee:         fee,
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(pyreToken),
+            fee: fee,
             tickSpacing: spacing,
-            hooks:       IHooks(hook)
+            hooks: IHooks(hook)
         });
 
         console2.log("=== Pyre V4 Swap Quote Test ===");
@@ -52,14 +52,17 @@ contract QuoteSwapTest is Script {
         console2.log("--- Buy: ETH -> PYRE ---");
         console2.log("  ETH in (wei):", ethIn);
 
-        try IV4Quoter(quoter).quoteExactInputSingle(
-            IV4Quoter.QuoteExactSingleParams({
-                poolKey:     key,
-                zeroForOne:  true,   // currency0 (ETH) -> currency1 (PYRE)
+        try IV4Quoter(quoter)
+            .quoteExactInputSingle(
+                IV4Quoter.QuoteExactSingleParams({
+                poolKey: key,
+                zeroForOne: true, // currency0 (ETH) -> currency1 (PYRE)
                 exactAmount: ethIn,
-                hookData:    ""
+                hookData: ""
             })
-        ) returns (uint256 amountOut, uint256 gasEstimate) {
+            ) returns (
+            uint256 amountOut, uint256 gasEstimate
+        ) {
             console2.log("  PYRE out (wei)  :", amountOut);
             console2.log("  gas estimate    :", gasEstimate);
             if (amountOut > 0) {
@@ -78,14 +81,17 @@ contract QuoteSwapTest is Script {
         console2.log("--- Sell: PYRE -> ETH ---");
         console2.log("  PYRE in (wei):", pyreIn);
 
-        try IV4Quoter(quoter).quoteExactInputSingle(
-            IV4Quoter.QuoteExactSingleParams({
-                poolKey:     key,
-                zeroForOne:  false,  // currency1 (PYRE) -> currency0 (ETH)
+        try IV4Quoter(quoter)
+            .quoteExactInputSingle(
+                IV4Quoter.QuoteExactSingleParams({
+                poolKey: key,
+                zeroForOne: false, // currency1 (PYRE) -> currency0 (ETH)
                 exactAmount: pyreIn,
-                hookData:    ""
+                hookData: ""
             })
-        ) returns (uint256 amountOut, uint256 gasEstimate) {
+            ) returns (
+            uint256 amountOut, uint256 gasEstimate
+        ) {
             console2.log("  ETH out (wei)   :", amountOut);
             console2.log("  gas estimate    :", gasEstimate);
             if (amountOut > 0) {

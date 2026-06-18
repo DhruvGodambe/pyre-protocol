@@ -4,6 +4,9 @@ pragma solidity ^0.8.24;
 import {IPoolManager} from "../../src/hook/v4/interfaces/IPoolManager.sol";
 import {Currency} from "../../src/hook/v4/types/Currency.sol";
 import {CurrencyLibrary} from "../../src/hook/v4/types/Currency.sol";
+import {PoolKey} from "../../src/hook/v4/types/PoolKey.sol";
+import {SwapParams} from "../../src/hook/v4/types/PoolOperation.sol";
+import {BalanceDelta, toBalanceDelta} from "../../src/hook/v4/types/BalanceDelta.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract MockPoolManager is IPoolManager {
@@ -47,6 +50,25 @@ contract MockPoolManager is IPoolManager {
         (bool success, bytes memory result) = msg.sender.call(abi.encodeWithSignature("unlockCallback(bytes)", data));
         require(success, "unlockCallback failed");
         return result;
+    }
+
+    function swap(
+        PoolKey memory,
+        /*key*/
+        SwapParams memory params,
+        bytes calldata /*hookData*/
+    )
+        external
+        returns (BalanceDelta)
+    {
+        int256 input = params.amountSpecified;
+        int128 inputDelta = int128(input); // negative: caller owes manager
+        int128 outputDelta = int128(-input); // positive: manager owes caller
+        if (params.zeroForOne) {
+            return toBalanceDelta(inputDelta, outputDelta);
+        } else {
+            return toBalanceDelta(outputDelta, inputDelta);
+        }
     }
 
     receive() external payable {}

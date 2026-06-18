@@ -12,6 +12,7 @@ import {PyreHookDiamondDeployer} from "./utils/PyreHookDiamondDeployer.s.sol";
 import {PyreHookDiamond} from "../src/hook/diamond/PyreHookDiamond.sol";
 import {PyreHookInitParams} from "../src/hook/init/DiamondInit.sol";
 import {FeeLogicFacet} from "../src/hook/facets/FeeLogicFacet.sol";
+import {LpBurnFacet} from "../src/hook/facets/LpBurnFacet.sol";
 import {IHooks} from "../src/hook/v4/interfaces/IHooks.sol";
 import {PoolKey} from "../src/hook/v4/types/PoolKey.sol";
 import {Currency, CurrencyLibrary} from "../src/hook/v4/types/Currency.sol";
@@ -29,7 +30,7 @@ interface IPositionManagerLiquidity {
     function modifyLiquidities(bytes calldata unlockData, uint256 deadline) external payable;
 }
 
-contract DeployAll is Script {
+contract DeployAll is Script, PyreHookDiamondDeployer {
     // Initial price: 1 ETH = 100,000 PYRE  →  sqrtPriceX96 = sqrt(100000) * 2^96
     uint160 internal constant INITIAL_SQRT_PRICE = 25054144837504793118641380156900;
     // Liquidity for full-range position seeded with ~0.1 ETH + ~10,000 PYRE (= sqrt(0.1e18 * 10000e18))
@@ -64,18 +65,23 @@ contract DeployAll is Script {
             teamWallet: teamWallet
         });
 
-        PyreHookDiamondDeployer deployer = new PyreHookDiamondDeployer();
-        bytes memory creationCode = deployer.getCreationCode(admin, initParams);
+        // Deploy all facets + tiny on-chain CREATE2 deployer + mine salt + deploy diamond — all in one call
+        (PyreHookDiamondDeployer.Deployment memory hookDeployment,) = _deployHook(admin, initParams);
+
+        // Grant the hook the LP_RECORDER_ROLE in FireSpirit so it can flag burners
+        pyreDeployment.fireSpirit
+            .grantRole(pyreDeployment.fireSpirit.LP_RECORDER_ROLE(), address(hookDeployment.diamond));
+
+        // Configure the hook's LpBurnFacet with the position manager and fire spirit
+        LpBurnFacet(address(hookDeployment.diamond)).configurePositionManager(positionManager);
+        LpBurnFacet(address(hookDeployment.diamond)).configureFireSpirit(address(pyreDeployment.fireSpirit));
+
         vm.stopBroadcast();
 
-        // Phase 2: Mine salt locally — this is a view call, NOT a transaction.
-        // Must run outside broadcast: loops up to 10M keccak256 ops which would OOG on-chain.
-        bytes32 salt = deployer.mineSaltLocally(creationCode);
-
-        // Phase 3: Deploy diamond + configure pool + seed initial liquidity
+        // Phase 2+3 are handled inside _deployHook (salt mining is a view call to the on-chain deployer)
+        // Re-open broadcast for pool configuration and liquidity seeding
         vm.startBroadcast();
-        PyreHookDiamondDeployer.Deployment memory hookDeployment = deployer.deploy(admin, initParams, salt);
-        validHookAddress = deployer.validateHookAddress(address(hookDeployment.diamond));
+        validHookAddress = _validateHookAddress(address(hookDeployment.diamond));
         hookAddress = address(hookDeployment.diamond);
 
         PoolKey memory poolKey = PoolKey({
@@ -95,12 +101,10 @@ contract DeployAll is Script {
 
         // Approve Permit2 to pull PYRE from this broadcaster, then allow PositionManager via Permit2
         pyreDeployment.token.approve(PERMIT2, type(uint256).max);
-        IPermit2Approver(PERMIT2).approve(
-            address(pyreDeployment.token),
-            positionManager,
-            type(uint160).max,
-            uint48(block.timestamp + 1 hours)
-        );
+        IPermit2Approver(PERMIT2)
+            .approve(
+                address(pyreDeployment.token), positionManager, type(uint160).max, uint48(block.timestamp + 1 hours)
+            );
 
         // Encode MINT_POSITION + SETTLE_PAIR + SWEEP actions
         // MINT_POSITION=0x02, SETTLE_PAIR=0x0d, SWEEP=0x14
@@ -112,23 +116,20 @@ contract DeployAll is Script {
             FULL_TICK_LOWER,
             FULL_TICK_UPPER,
             uint256(INITIAL_LIQUIDITY),
-            uint128(0.11 ether),   // amount0Max: slight buffer over expected ~0.1 ETH
+            uint128(0.11 ether), // amount0Max: slight buffer over expected ~0.1 ETH
             uint128(11_000 ether), // amount1Max: slight buffer over expected ~10,000 PYRE
             admin,
             bytes("")
         );
         // SETTLE_PAIR params: settle both currencies (ETH from msg.value, PYRE via Permit2)
-        mintParams[1] = abi.encode(
-            CurrencyLibrary.wrap(address(0)),
-            CurrencyLibrary.wrap(address(pyreDeployment.token))
-        );
+        mintParams[1] =
+            abi.encode(CurrencyLibrary.wrap(address(0)), CurrencyLibrary.wrap(address(pyreDeployment.token)));
         // SWEEP params: return any unspent ETH to admin
         mintParams[2] = abi.encode(CurrencyLibrary.wrap(address(0)), admin);
 
         // Send 0.11 ETH; SWEEP returns any unused portion to admin
         IPositionManagerLiquidity(positionManager).modifyLiquidities{value: 0.11 ether}(
-            abi.encode(actions, mintParams),
-            block.timestamp + 1 hours
+            abi.encode(actions, mintParams), block.timestamp + 1 hours
         );
 
         console2.log("Pool initialized and seeded with ~0.1 ETH + ~10,000 PYRE liquidity");

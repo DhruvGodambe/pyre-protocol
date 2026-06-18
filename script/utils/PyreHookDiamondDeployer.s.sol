@@ -14,9 +14,84 @@ import {LpBurnFacet} from "../../src/hook/facets/LpBurnFacet.sol";
 import {DiamondInit, PyreHookInitParams} from "../../src/hook/init/DiamondInit.sol";
 import {IHooks} from "../../src/hook/v4/interfaces/IHooks.sol";
 
-/// @title PyreHookDiamondDeployer
-/// @notice Helper to deploy the PYRE hook diamond with all facets attached.
-contract PyreHookDiamondDeployer {
+/// @title PyreHookCreate2Deployer
+/// @notice Tiny on-chain contract whose ONLY job is to deploy PyreHookDiamond via CREATE2.
+///         Because it is deployed on-chain, `address(this)` is a stable address and
+///         Foundry's script guard does not apply.  The script deploys all facets separately
+///         and passes them in, keeping this contract well under the 24 KB size limit.
+contract PyreHookCreate2Deployer {
+    uint160 internal constant ALL_HOOK_MASK = uint160((1 << 14) - 1);
+    uint160 internal constant EXACT_HOOK_FLAGS = (1 << 13) | (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8)
+        | (1 << 7) | (1 << 6) | (1 << 5) | (1 << 4) | (1 << 3);
+    uint256 internal constant MAX_SALT_SEARCH = 10_000_000;
+
+    error HookSaltNotFound();
+
+    // -----------------------------------------------------------------------
+    // Salt mining — view function, called off-chain from the script.
+    // `address(this)` here is the stable on-chain deployer address.
+    // -----------------------------------------------------------------------
+    function mineSalt(bytes memory creationCode) external view returns (bytes32 salt) {
+        bytes32 bytecodeHash = keccak256(creationCode);
+        for (uint256 i; i < MAX_SALT_SEARCH; ++i) {
+            salt = bytes32(i);
+            address predicted =
+                address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, bytecodeHash)))));
+            if (_validHookAddress(predicted)) return salt;
+        }
+        revert HookSaltNotFound();
+    }
+
+    // -----------------------------------------------------------------------
+    // CREATE2 deployment — the actual on-chain transaction.
+    // -----------------------------------------------------------------------
+    function deploy(
+        address owner,
+        IDiamondCut.FacetCut[] memory cuts,
+        address diamondInit,
+        bytes memory initData,
+        bytes32 salt
+    ) external returns (address diamond) {
+        diamond = address(new PyreHookDiamond{salt: salt}(owner, cuts, diamondInit, initData));
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+    function buildCreationCode(
+        address owner,
+        IDiamondCut.FacetCut[] memory cuts,
+        address diamondInit,
+        bytes memory initData
+    ) external pure returns (bytes memory) {
+        return abi.encodePacked(type(PyreHookDiamond).creationCode, abi.encode(owner, cuts, diamondInit, initData));
+    }
+
+    function validateHookAddress(address hook) external pure returns (bool) {
+        return _validHookAddress(hook);
+    }
+
+    function _validHookAddress(address hook) internal pure returns (bool) {
+        return (uint160(hook) & ALL_HOOK_MASK) == EXACT_HOOK_FLAGS;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Script-side mixin — pure selector helpers, NO address(this), NO state.
+// ---------------------------------------------------------------------------
+abstract contract PyreHookDiamondDeployer {
+    struct FacetAddresses {
+        address diamondCut;
+        address diamondLoupe;
+        address ownership;
+        address swapHook;
+        address feeLogic;
+        address burn;
+        address yieldDistribution;
+        address lpBurn;
+        address diamondInit;
+    }
+
     struct Deployment {
         PyreHookDiamond diamond;
         DiamondCutFacet diamondCutFacet;
@@ -30,114 +105,90 @@ contract PyreHookDiamondDeployer {
         DiamondInit diamondInit;
     }
 
-    /// @dev v4 hook permission flags encoded in the low bits of the hook address.
-    uint160 internal constant ALL_HOOK_MASK = uint160((1 << 14) - 1);
-    uint160 internal constant EXACT_HOOK_FLAGS = (1 << 13) | (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8)
-        | (1 << 7) | (1 << 6) | (1 << 5) | (1 << 4) | (1 << 3);
-    uint256 internal constant MAX_SALT_SEARCH = 10_000_000;
-
-    error HookSaltNotFound();
-
-    DiamondCutFacet internal diamondCutFacet;
-    DiamondLoupeFacet internal diamondLoupeFacet;
-    OwnershipFacet internal ownershipFacet;
-    SwapHookFacet internal swapHookFacet;
-    FeeLogicFacet internal feeLogicFacet;
-    BurnFacet internal burnFacet;
-    YieldDistributionFacet internal yieldDistributionFacet;
-    LpBurnFacet internal lpBurnFacet;
-    DiamondInit internal diamondInit;
-
-    function deploy(address owner, PyreHookInitParams memory initParams, bytes32 salt)
-        public
-        returns (Deployment memory deployment)
-    {
-        deployment.diamond = deployDiamond(owner, initParams, salt);
-        deployment.diamondCutFacet = diamondCutFacet;
-        deployment.diamondLoupeFacet = diamondLoupeFacet;
-        deployment.ownershipFacet = ownershipFacet;
-        deployment.swapHookFacet = swapHookFacet;
-        deployment.feeLogicFacet = feeLogicFacet;
-        deployment.burnFacet = burnFacet;
-        deployment.yieldDistributionFacet = yieldDistributionFacet;
-        deployment.lpBurnFacet = lpBurnFacet;
-        deployment.diamondInit = diamondInit;
+    // -----------------------------------------------------------------------
+    // Deploy all facets from the script (no address(this) usage here)
+    // -----------------------------------------------------------------------
+    function _deployFacets() internal returns (FacetAddresses memory f) {
+        f.diamondCut = address(new DiamondCutFacet());
+        f.diamondLoupe = address(new DiamondLoupeFacet());
+        f.ownership = address(new OwnershipFacet());
+        f.swapHook = address(new SwapHookFacet());
+        f.feeLogic = address(new FeeLogicFacet());
+        f.burn = address(new BurnFacet());
+        f.yieldDistribution = address(new YieldDistributionFacet());
+        f.lpBurn = address(new LpBurnFacet());
+        f.diamondInit = address(new DiamondInit());
     }
 
-    function getCreationCode(address owner, PyreHookInitParams memory initParams) public returns (bytes memory) {
-        diamondCutFacet = new DiamondCutFacet();
-        diamondLoupeFacet = new DiamondLoupeFacet();
-        ownershipFacet = new OwnershipFacet();
-        swapHookFacet = new SwapHookFacet();
-        feeLogicFacet = new FeeLogicFacet();
-        burnFacet = new BurnFacet();
-        yieldDistributionFacet = new YieldDistributionFacet();
-        lpBurnFacet = new LpBurnFacet();
-        diamondInit = new DiamondInit();
-
-        bytes memory initData = abi.encodeCall(DiamondInit.init, (initParams));
-
-        return abi.encodePacked(
-            type(PyreHookDiamond).creationCode, abi.encode(owner, _buildCuts(), address(diamondInit), initData)
-        );
-    }
-
-    function mineSaltLocally(bytes memory creationCode) public view returns (bytes32 salt) {
-        return _mineHookSalt(creationCode);
-    }
-
-    function deployDiamond(address owner, PyreHookInitParams memory initParams, bytes32 salt)
-        public
-        returns (PyreHookDiamond diamond)
-    {
-        bytes memory initData = abi.encodeCall(DiamondInit.init, (initParams));
-        diamond = new PyreHookDiamond{salt: salt}(owner, _buildCuts(), address(diamondInit), initData);
-    }
-
-    function _buildCuts() private view returns (IDiamondCut.FacetCut[] memory cuts) {
+    function _buildCuts(FacetAddresses memory f) internal pure returns (IDiamondCut.FacetCut[] memory cuts) {
         cuts = new IDiamondCut.FacetCut[](8);
-        cuts[0] = _cut(address(diamondCutFacet), _diamondCutSelectors());
-        cuts[1] = _cut(address(diamondLoupeFacet), _loupeSelectors());
-        cuts[2] = _cut(address(ownershipFacet), _ownershipSelectors());
-        cuts[3] = _cut(address(swapHookFacet), _hookSelectors());
-        cuts[4] = _cut(address(feeLogicFacet), _feeLogicSelectors());
-        cuts[5] = _cut(address(burnFacet), _burnSelectors());
-        cuts[6] = _cut(address(yieldDistributionFacet), _yieldSelectors());
-        cuts[7] = _cut(address(lpBurnFacet), _lpBurnSelectors());
+        cuts[0] = _cut(f.diamondCut, _diamondCutSelectors());
+        cuts[1] = _cut(f.diamondLoupe, _loupeSelectors());
+        cuts[2] = _cut(f.ownership, _ownershipSelectors());
+        cuts[3] = _cut(f.swapHook, _hookSelectors());
+        cuts[4] = _cut(f.feeLogic, _feeLogicSelectors());
+        cuts[5] = _cut(f.burn, _burnSelectors());
+        cuts[6] = _cut(f.yieldDistribution, _yieldSelectors());
+        cuts[7] = _cut(f.lpBurn, _lpBurnSelectors());
     }
 
-    function validateHookAddress(address hook) public pure returns (bool) {
-        return (uint160(hook) & ALL_HOOK_MASK) == EXACT_HOOK_FLAGS;
+    // -----------------------------------------------------------------------
+    // Full hook deployment orchestration (called from scripts)
+    // -----------------------------------------------------------------------
+    function _deployHook(address owner, PyreHookInitParams memory initParams)
+        internal
+        returns (Deployment memory deployment, PyreHookCreate2Deployer create2Deployer)
+    {
+        // 1. Deploy the tiny on-chain CREATE2 deployer
+        create2Deployer = new PyreHookCreate2Deployer();
+
+        // 2. Deploy all facets from the script context
+        FacetAddresses memory f = _deployFacets();
+        IDiamondCut.FacetCut[] memory cuts = _buildCuts(f);
+        bytes memory initData = abi.encodeCall(DiamondInit.init, (initParams));
+
+        // 3. Mine salt — calls address(this) inside the on-chain deployer (safe)
+        bytes memory creationCode = create2Deployer.buildCreationCode(owner, cuts, f.diamondInit, initData);
+        bytes32 salt = create2Deployer.mineSalt(creationCode);
+
+        // 4. Deploy the diamond via CREATE2 from the on-chain deployer
+        address diamondAddr = create2Deployer.deploy(owner, cuts, f.diamondInit, initData, salt);
+
+        // 5. Populate return struct
+        deployment.diamond = PyreHookDiamond(payable(diamondAddr));
+        deployment.diamondCutFacet = DiamondCutFacet(f.diamondCut);
+        deployment.diamondLoupeFacet = DiamondLoupeFacet(f.diamondLoupe);
+        deployment.ownershipFacet = OwnershipFacet(f.ownership);
+        deployment.swapHookFacet = SwapHookFacet(f.swapHook);
+        deployment.feeLogicFacet = FeeLogicFacet(f.feeLogic);
+        deployment.burnFacet = BurnFacet(f.burn);
+        deployment.yieldDistributionFacet = YieldDistributionFacet(f.yieldDistribution);
+        deployment.lpBurnFacet = LpBurnFacet(f.lpBurn);
+        deployment.diamondInit = DiamondInit(f.diamondInit);
     }
 
-    function _mineHookSalt(bytes memory creationCode) private view returns (bytes32 salt) {
-        bytes32 bytecodeHash = keccak256(creationCode);
-
-        for (uint256 i; i < MAX_SALT_SEARCH; ++i) {
-            salt = bytes32(i);
-            address predicted =
-                address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, bytecodeHash)))));
-
-            if (validateHookAddress(predicted)) {
-                return salt;
-            }
-        }
-
-        revert HookSaltNotFound();
+    function _validateHookAddress(address hook) internal pure returns (bool) {
+        uint160 ALL_MASK = uint160((1 << 14) - 1);
+        uint160 EXACT_FLAGS = (1 << 13) | (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 7) | (1 << 6)
+            | (1 << 5) | (1 << 4) | (1 << 3);
+        return (uint160(hook) & ALL_MASK) == EXACT_FLAGS;
     }
 
-    function _cut(address facet, bytes4[] memory selectors) private pure returns (IDiamondCut.FacetCut memory) {
+    // -----------------------------------------------------------------------
+    // Selector helpers — pure, no state, no address(this)
+    // -----------------------------------------------------------------------
+    function _cut(address facet, bytes4[] memory selectors) internal pure returns (IDiamondCut.FacetCut memory) {
         return IDiamondCut.FacetCut({
             facetAddress: facet, action: IDiamondCut.FacetCutAction.Add, functionSelectors: selectors
         });
     }
 
-    function _diamondCutSelectors() private pure returns (bytes4[] memory s) {
+    function _diamondCutSelectors() internal pure returns (bytes4[] memory s) {
         s = new bytes4[](1);
         s[0] = DiamondCutFacet.diamondCut.selector;
     }
 
-    function _loupeSelectors() private pure returns (bytes4[] memory s) {
+    function _loupeSelectors() internal pure returns (bytes4[] memory s) {
         s = new bytes4[](4);
         s[0] = DiamondLoupeFacet.facets.selector;
         s[1] = DiamondLoupeFacet.facetFunctionSelectors.selector;
@@ -145,13 +196,13 @@ contract PyreHookDiamondDeployer {
         s[3] = DiamondLoupeFacet.facetAddress.selector;
     }
 
-    function _ownershipSelectors() private pure returns (bytes4[] memory s) {
+    function _ownershipSelectors() internal pure returns (bytes4[] memory s) {
         s = new bytes4[](2);
         s[0] = OwnershipFacet.owner.selector;
         s[1] = OwnershipFacet.transferOwnership.selector;
     }
 
-    function _hookSelectors() private pure returns (bytes4[] memory s) {
+    function _hookSelectors() internal pure returns (bytes4[] memory s) {
         s = new bytes4[](10);
         s[0] = IHooks.beforeSwap.selector;
         s[1] = IHooks.afterSwap.selector;
@@ -165,7 +216,7 @@ contract PyreHookDiamondDeployer {
         s[9] = IHooks.afterDonate.selector;
     }
 
-    function _feeLogicSelectors() private pure returns (bytes4[] memory s) {
+    function _feeLogicSelectors() internal pure returns (bytes4[] memory s) {
         s = new bytes4[](7);
         s[0] = FeeLogicFacet.configurePool.selector;
         s[1] = FeeLogicFacet.configureAntiSnipe.selector;
@@ -176,26 +227,29 @@ contract PyreHookDiamondDeployer {
         s[6] = FeeLogicFacet.unlockCallback.selector;
     }
 
-    function _burnSelectors() private pure returns (bytes4[] memory s) {
+    function _burnSelectors() internal pure returns (bytes4[] memory s) {
         s = new bytes4[](3);
         s[0] = BurnFacet.configurePyreToken.selector;
         s[1] = BurnFacet.getPyreToken.selector;
         s[2] = BurnFacet.getTotalPyreBurned.selector;
     }
 
-    function _yieldSelectors() private pure returns (bytes4[] memory s) {
+    function _yieldSelectors() internal pure returns (bytes4[] memory s) {
         s = new bytes4[](3);
         s[0] = YieldDistributionFacet.configureYieldDistribution.selector;
         s[1] = YieldDistributionFacet.getYieldConfig.selector;
         s[2] = YieldDistributionFacet.getTotalEthDistributed.selector;
     }
 
-    function _lpBurnSelectors() private pure returns (bytes4[] memory s) {
-        s = new bytes4[](5);
+    function _lpBurnSelectors() internal pure returns (bytes4[] memory s) {
+        s = new bytes4[](8);
         s[0] = LpBurnFacet.configureFireSpirit.selector;
         s[1] = LpBurnFacet.getFireSpirit.selector;
-        s[2] = LpBurnFacet.getTotalLpBurns.selector;
-        s[3] = LpBurnFacet.getTotalPyreBurnedFromLp.selector;
-        s[4] = LpBurnFacet.getTotalEthRoutedFromLp.selector;
+        s[2] = LpBurnFacet.configurePositionManager.selector;
+        s[3] = LpBurnFacet.getPositionManager.selector;
+        s[4] = LpBurnFacet.burnLpPosition.selector;
+        s[5] = LpBurnFacet.getTotalLpBurns.selector;
+        s[6] = LpBurnFacet.getTotalPyreBurnedFromLp.selector;
+        s[7] = LpBurnFacet.getTotalEthRoutedFromLp.selector;
     }
 }

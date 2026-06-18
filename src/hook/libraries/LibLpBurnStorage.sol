@@ -6,6 +6,7 @@ bytes32 constant LP_BURN_STORAGE_POSITION = keccak256("pyre.storage.lp.burn");
 library LibLpBurnStorage {
     struct LpBurnStorage {
         address fireSpirit;
+        address positionManager;
         uint256 totalLpPositionBurns;
         uint256 totalPyreBurnedFromLp;
         uint256 totalEthRoutedFromLp;
