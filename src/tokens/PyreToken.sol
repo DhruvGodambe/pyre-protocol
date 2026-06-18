@@ -12,6 +12,9 @@ import {IPyreToken} from "../interfaces/IPyreToken.sol";
 contract PyreToken is ERC20, AccessControl, IPyreToken {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
+    uint256 public constant MAX_SUPPLY = 1_000_000_000 * 1e18; // 1 billion PYRE
+    uint256 public constant INITIAL_DEPLOYER_MINT_BPS = 100;   // 1% of MAX_SUPPLY
+
     uint256 public constant EPOCH_DURATION = 1 hours;
     uint256 public constant DRIP_DURATION = 7 days;
     uint256 public constant EPOCHS_PER_ERA = 2000;
@@ -59,6 +62,7 @@ contract PyreToken is ERC20, AccessControl, IPyreToken {
         protocolStartTime = block.timestamp;
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(MINTER_ROLE, admin);
+        _mint(admin, (MAX_SUPPLY * INITIAL_DEPLOYER_MINT_BPS) / BPS);
     }
 
     function currentEpoch() public view returns (uint256) {

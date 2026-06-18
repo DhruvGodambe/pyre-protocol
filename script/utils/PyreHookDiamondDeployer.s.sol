@@ -16,9 +16,7 @@ import {IHooks} from "../../src/hook/v4/interfaces/IHooks.sol";
 
 /// @title PyreHookDiamondDeployer
 /// @notice Helper to deploy the PYRE hook diamond with all facets attached.
-import {Script} from "forge-std/Script.sol";
-
-contract PyreHookDiamondDeployer is Script {
+contract PyreHookDiamondDeployer {
     struct Deployment {
         PyreHookDiamond diamond;
         DiamondCutFacet diamondCutFacet;
@@ -40,20 +38,20 @@ contract PyreHookDiamondDeployer is Script {
 
     error HookSaltNotFound();
 
-    DiamondCutFacet public diamondCutFacet;
-    DiamondLoupeFacet public diamondLoupeFacet;
-    OwnershipFacet public ownershipFacet;
-    SwapHookFacet public swapHookFacet;
-    FeeLogicFacet public feeLogicFacet;
-    BurnFacet public burnFacet;
-    YieldDistributionFacet public yieldDistributionFacet;
-    LpBurnFacet public lpBurnFacet;
-    DiamondInit public diamondInit;
+    DiamondCutFacet internal diamondCutFacet;
+    DiamondLoupeFacet internal diamondLoupeFacet;
+    OwnershipFacet internal ownershipFacet;
+    SwapHookFacet internal swapHookFacet;
+    FeeLogicFacet internal feeLogicFacet;
+    BurnFacet internal burnFacet;
+    YieldDistributionFacet internal yieldDistributionFacet;
+    LpBurnFacet internal lpBurnFacet;
+    DiamondInit internal diamondInit;
 
-    function deploy(address owner, PyreHookInitParams memory initParams) public returns (Deployment memory deployment) {
-        bytes memory creationCode = getCreationCode(owner, initParams);
-        bytes32 salt = mineSaltLocally(creationCode);
-
+    function deploy(address owner, PyreHookInitParams memory initParams, bytes32 salt)
+        public
+        returns (Deployment memory deployment)
+    {
         deployment.diamond = deployDiamond(owner, initParams, salt);
         deployment.diamondCutFacet = diamondCutFacet;
         deployment.diamondLoupeFacet = diamondLoupeFacet;
@@ -77,22 +75,11 @@ contract PyreHookDiamondDeployer is Script {
         lpBurnFacet = new LpBurnFacet();
         diamondInit = new DiamondInit();
 
-        IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](8);
-        cuts[0] = _cut(address(diamondCutFacet), _diamondCutSelectors());
-        cuts[1] = _cut(address(diamondLoupeFacet), _loupeSelectors());
-        cuts[2] = _cut(address(ownershipFacet), _ownershipSelectors());
-        cuts[3] = _cut(address(swapHookFacet), _hookSelectors());
-        cuts[4] = _cut(address(feeLogicFacet), _feeLogicSelectors());
-        cuts[5] = _cut(address(burnFacet), _burnSelectors());
-        cuts[6] = _cut(address(yieldDistributionFacet), _yieldSelectors());
-        cuts[7] = _cut(address(lpBurnFacet), _lpBurnSelectors());
-
         bytes memory initData = abi.encodeCall(DiamondInit.init, (initParams));
 
-        return
-            abi.encodePacked(
-                type(PyreHookDiamond).creationCode, abi.encode(owner, cuts, address(diamondInit), initData)
-            );
+        return abi.encodePacked(
+            type(PyreHookDiamond).creationCode, abi.encode(owner, _buildCuts(), address(diamondInit), initData)
+        );
     }
 
     function mineSaltLocally(bytes memory creationCode) public view returns (bytes32 salt) {
@@ -103,7 +90,12 @@ contract PyreHookDiamondDeployer is Script {
         public
         returns (PyreHookDiamond diamond)
     {
-        IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](8);
+        bytes memory initData = abi.encodeCall(DiamondInit.init, (initParams));
+        diamond = new PyreHookDiamond{salt: salt}(owner, _buildCuts(), address(diamondInit), initData);
+    }
+
+    function _buildCuts() private view returns (IDiamondCut.FacetCut[] memory cuts) {
+        cuts = new IDiamondCut.FacetCut[](8);
         cuts[0] = _cut(address(diamondCutFacet), _diamondCutSelectors());
         cuts[1] = _cut(address(diamondLoupeFacet), _loupeSelectors());
         cuts[2] = _cut(address(ownershipFacet), _ownershipSelectors());
@@ -112,10 +104,6 @@ contract PyreHookDiamondDeployer is Script {
         cuts[5] = _cut(address(burnFacet), _burnSelectors());
         cuts[6] = _cut(address(yieldDistributionFacet), _yieldSelectors());
         cuts[7] = _cut(address(lpBurnFacet), _lpBurnSelectors());
-
-        bytes memory initData = abi.encodeCall(DiamondInit.init, (initParams));
-
-        diamond = new PyreHookDiamond{salt: salt}(owner, cuts, address(diamondInit), initData);
     }
 
     function validateHookAddress(address hook) public pure returns (bool) {

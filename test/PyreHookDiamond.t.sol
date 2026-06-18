@@ -51,7 +51,10 @@ contract PyreHookDiamondTest is Test {
         PyreHookInitParams memory initParams =
             PyreHookInitParams({pyreToken: address(token), pyreStaking: address(staking), teamWallet: team});
 
-        deployment = new PyreHookDiamondDeployer().deploy(admin, initParams);
+        PyreHookDiamondDeployer hookDeployer = new PyreHookDiamondDeployer();
+        bytes memory creationCode = hookDeployer.getCreationCode(admin, initParams);
+        bytes32 salt = hookDeployer.mineSaltLocally(creationCode);
+        deployment = hookDeployer.deploy(admin, initParams, salt);
 
         poolKey = PoolKey({
             currency0: CurrencyLibrary.wrap(address(0)),

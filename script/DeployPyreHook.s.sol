@@ -3,8 +3,6 @@ pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
 import {PyreHookDiamondDeployer} from "./utils/PyreHookDiamondDeployer.s.sol";
-import {PyreHookDiamond} from "../src/hook/diamond/PyreHookDiamond.sol";
-import {LpBurnFacet} from "../src/hook/facets/LpBurnFacet.sol";
 import {PyreHookInitParams} from "../src/hook/init/DiamondInit.sol";
 import {FeeLogicFacet} from "../src/hook/facets/FeeLogicFacet.sol";
 import {IHooks} from "../src/hook/v4/interfaces/IHooks.sol";
@@ -24,35 +22,27 @@ contract DeployPyreHook is Script {
         PyreHookInitParams memory initParams =
             PyreHookInitParams({pyreToken: pyreToken, pyreStaking: address(pyreStaking), teamWallet: teamWallet});
 
+        // Phase 1: Deploy deployer contract + all diamond facets
         vm.startBroadcast();
         PyreHookDiamondDeployer deployer = new PyreHookDiamondDeployer();
         bytes memory creationCode = deployer.getCreationCode(admin, initParams);
         vm.stopBroadcast();
 
+        // Phase 2: Mine salt locally — view call, NOT a transaction.
+        // Must run outside broadcast: loops up to 10M keccak256 ops which would OOG on-chain.
         bytes32 salt = deployer.mineSaltLocally(creationCode);
 
+        // Phase 3: Deploy diamond + configure pool
         vm.startBroadcast();
-        PyreHookDiamond diamond = deployer.deployDiamond(admin, initParams, salt);
-        validHookAddress = deployer.validateHookAddress(address(diamond));
-        deployment = PyreHookDiamondDeployer.Deployment({
-            diamond: diamond,
-            diamondCutFacet: deployer.diamondCutFacet(),
-            diamondLoupeFacet: deployer.diamondLoupeFacet(),
-            ownershipFacet: deployer.ownershipFacet(),
-            swapHookFacet: deployer.swapHookFacet(),
-            feeLogicFacet: deployer.feeLogicFacet(),
-            burnFacet: deployer.burnFacet(),
-            yieldDistributionFacet: deployer.yieldDistributionFacet(),
-            lpBurnFacet: deployer.lpBurnFacet(),
-            diamondInit: deployer.diamondInit()
-        });
+        deployment = deployer.deploy(admin, initParams, salt);
+        validHookAddress = deployer.validateHookAddress(address(deployment.diamond));
 
         PoolKey memory poolKey = PoolKey({
             currency0: CurrencyLibrary.wrap(address(0)),
             currency1: CurrencyLibrary.wrap(pyreToken),
             fee: uint24(vm.envOr("PYRE_POOL_FEE", uint256(3000))),
             tickSpacing: int24(int256(vm.envOr("PYRE_TICK_SPACING", int256(60)))),
-            hooks: IHooks(address(diamond))
+            hooks: IHooks(address(deployment.diamond))
         });
 
         FeeLogicFacet(address(deployment.diamond))
