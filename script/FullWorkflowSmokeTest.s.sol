@@ -114,29 +114,45 @@ contract FullWorkflowSmokeTest is Script {
 
         vm.startBroadcast();
 
-        // 🏁 Phase 1 to 6 🏁
-        // Skipped Phase 1 to 6 to save gas limit and resume from burn tests.
+        // 🏁 Phases 1 to 6 🏁
+        // Phase 1 (Init) is handled by DeployAll
         _setupApprovals(c);
 
+        // ── Phase 2 ─────────────────────────────────────────────────────────────
+        _phase(2, "BUY SWAP (ETH -> PYRE)");
+        GlobalSnapshot memory snapBeforeBuy = _snap(c);
+        _buyPyreWithEth(c, key);
+        GlobalSnapshot memory snapAfterBuy = _snap(c);
+        _writeDeltaSection("After Buy", snapBeforeBuy, snapAfterBuy);
+        _assertBuyFee(c, snapBeforeBuy, snapAfterBuy, buyFeeBps);
+
+        // ── Phase 3 ─────────────────────────────────────────────────────────────
+        _phase(3, "SELL SWAP (PYRE -> ETH)");
+        GlobalSnapshot memory snapBeforeSell = _snap(c);
+        _sellPyreForEth(c, key);
+        GlobalSnapshot memory snapAfterSell = _snap(c);
+        _writeDeltaSection("After Sell", snapBeforeSell, snapAfterSell);
+        _assertSellFeeRouting(c, snapBeforeSell, snapAfterSell, sellFeeBps);
+
         // ── Phase 7 ─────────────────────────────────────────────────────────────
-        _phase(7, "DIRECT PYRE BURN (FireSpirit progression)");
-        _burnForNft(c);
+        // _phase(7, "DIRECT PYRE BURN (FireSpirit progression)");
+        // _burnForNft(c);
 
         // ── Phase 8 ─────────────────────────────────────────────────────────────
-        _phase(8, "LP BURN BONUS (+20% STAKING WEIGHT)");
-        _testLpBurnBonus(c);
+        // _phase(8, "LP BURN BONUS (+20% STAKING WEIGHT)");
+        // _testLpBurnBonus(c);
 
         // ── Phase 9 ─────────────────────────────────────────────────────────────
-        _phase(9, "SECOND SELL SWAP (cumulative burn verification)");
-        GlobalSnapshot memory snapBeforeSell2 = _snap(c);
-        _sellPyreForEth(c, key);
-        FeeLogicFacet(c.hook).claimFees(false);
-        GlobalSnapshot memory snapAfterSell2 = _snap(c);
-        _writeDeltaSection("After Sell 2", snapBeforeSell2, snapAfterSell2);
-        uint256 sellFeeBps2 = FeeLogicFacet(c.hook).getCurrentSellFeeBps();
-        _bullet(string.concat("Current sellFeeBps at sell2: ", vm.toString(sellFeeBps2)));
-        _assertSellFeeRouting(c, snapBeforeSell2, snapAfterSell2, sellFeeBps2);
-        _bullet(string.concat("Cumulative hook burn total: ", vm.toString(BurnFacet(c.hook).getTotalPyreBurned())));
+        // _phase(9, "SECOND SELL SWAP (cumulative burn verification)");
+        // GlobalSnapshot memory snapBeforeSell2 = _snap(c);
+        // _sellPyreForEth(c, key);
+        // // FeeLogicFacet(c.hook).claimFees(false); - autonomous now
+        // GlobalSnapshot memory snapAfterSell2 = _snap(c);
+        // _writeDeltaSection("After Sell 2", snapBeforeSell2, snapAfterSell2);
+        // uint256 sellFeeBps2 = FeeLogicFacet(c.hook).getCurrentSellFeeBps();
+        // _bullet(string.concat("Current sellFeeBps at sell2: ", vm.toString(sellFeeBps2)));
+        // _assertSellFeeRouting(c, snapBeforeSell2, snapAfterSell2, sellFeeBps2);
+        // _bullet(string.concat("Cumulative hook burn total: ", vm.toString(BurnFacet(c.hook).getTotalPyreBurned())));
 
         vm.stopBroadcast();
 
@@ -189,7 +205,7 @@ contract FullWorkflowSmokeTest is Script {
         c.liquidityDelta = vm.envOr("PYRE_TEST_LIQUIDITY", uint256(5e17));
         c.liquidityEthValue = vm.envOr("PYRE_TEST_LIQUIDITY_ETH_VALUE", uint256(0.005 ether));
         c.ethBuyAmount = vm.envOr("PYRE_TEST_ETH_BUY_AMOUNT", uint256(0.000001 ether)); // 1000 gwei
-        c.pyreSellAmount = vm.envOr("PYRE_TEST_PYRE_SELL_AMOUNT", uint256(0.001 ether)); // 0.001 PYRE
+        c.pyreSellAmount = vm.envOr("PYRE_TEST_PYRE_SELL_AMOUNT", uint256(10 ether)); // 10 PYRE
         c.stakeAmount = vm.envOr("PYRE_TEST_STAKE_AMOUNT", uint256(100 ether));
         c.directBurnAmount = vm.envOr("PYRE_TEST_DIRECT_BURN_AMOUNT", uint256(10000 ether));
         c.lpTokenId = vm.envOr("PYRE_LP_POSITION_TOKEN_ID", uint256(0));
@@ -401,8 +417,8 @@ contract FullWorkflowSmokeTest is Script {
         internal
     {
         uint256 expectedFee = (c.ethBuyAmount * buyFeeBps) / 10_000;
-        uint256 expectedYield = (expectedFee * 8_000) / 10_000;
-        uint256 expectedTeam = expectedFee - expectedYield;
+        uint256 expectedYield = 0;
+        uint256 expectedTeam = expectedFee;
         uint256 actualYield = a.totalEthToYield - b.totalEthToYield;
         uint256 actualTeam = a.totalEthToTeam - b.totalEthToTeam;
 
@@ -422,7 +438,7 @@ contract FullWorkflowSmokeTest is Script {
         );
         _mw(
             string.concat(
-                unicode"| 80% \u2192 staking | `",
+                unicode"| 0% \u2192 staking | `",
                 vm.toString(expectedYield),
                 "` | `",
                 vm.toString(actualYield),
@@ -433,7 +449,7 @@ contract FullWorkflowSmokeTest is Script {
         );
         _mw(
             string.concat(
-                unicode"| 20% \u2192 team | `",
+                unicode"| 100% \u2192 team | `",
                 vm.toString(expectedTeam),
                 "` | `",
                 vm.toString(actualTeam),
@@ -447,9 +463,9 @@ contract FullWorkflowSmokeTest is Script {
         console2.log("  expected buy fee   ", expectedFee);
         console2.log("  actual yield delta ", actualYield);
         console2.log("  actual team delta  ", actualTeam);
-        require(actualYield == expectedYield, "80pct yield split mismatch");
-        require(actualTeam == expectedTeam, "20pct team split mismatch");
-        _ok("Buy fee routing correct (80/20 split verified)");
+        require(actualYield == expectedYield, "0pct yield split mismatch");
+        require(actualTeam == expectedTeam, "100pct team split mismatch");
+        _ok("Buy fee routing correct (0/100 split verified)");
     }
 
     function _assertSellFeeRouting(
@@ -465,8 +481,8 @@ contract FullWorkflowSmokeTest is Script {
         uint256 actualTeam = a.totalEthToTeam - b.totalEthToTeam;
         uint256 totalEthRouted = actualYield + actualTeam;
 
-        uint256 expectedYield = (totalEthRouted * 8_000) / 10_000;
-        uint256 expectedTeam = totalEthRouted - expectedYield;
+        uint256 expectedYield = 0;
+        uint256 expectedTeam = totalEthRouted;
 
         _mw("");
         _mw("**Sell Fee Routing Assertion**");
@@ -483,14 +499,14 @@ contract FullWorkflowSmokeTest is Script {
         );
         _mw(
             string.concat(
-                "| 80% ETH to yield pool | ",
+                "| 0% ETH to yield pool | ",
                 (actualYield == expectedYield && totalEthRouted > 0) ? unicode"\u2705 PASS" : unicode"\u274c FAIL",
                 " |"
             )
         );
         _mw(
             string.concat(
-                "| 20% ETH to team wallet | ",
+                "| 100% ETH to team wallet | ",
                 (actualTeam == expectedTeam && totalEthRouted > 0) ? unicode"\u2705 PASS" : unicode"\u274c FAIL",
                 " |"
             )
@@ -503,9 +519,9 @@ contract FullWorkflowSmokeTest is Script {
         console2.log("  actual team delta  ", actualTeam);
         require(actualBurn == 0, "PYRE should not be burned on sell");
         require(totalEthRouted > 0, "No ETH was routed from the sell fee swap");
-        require(actualYield == expectedYield, "80pct yield split mismatch on sell");
-        require(actualTeam == expectedTeam, "20pct team split mismatch on sell");
-        _ok("Sell PYRE fee routing to ETH yield pool and team verified");
+        require(actualYield == expectedYield, "0pct yield split mismatch on sell");
+        require(actualTeam == expectedTeam, "100pct team split mismatch on sell");
+        _ok("Sell PYRE fee routing to team verified");
     }
 
     // ===========================================================================

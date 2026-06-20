@@ -125,8 +125,7 @@ contract PyreHookDiamondTest is Test, PyreHookDiamondDeployer {
                 ""
             );
 
-        // claimFees triggers poolManager.unlock → unlockCallback → extractAndDistributeBuyFee
-        FeeLogicFacet(address(deployment.diamond)).claimFees(true);
+        // claimFees is now autonomous within afterSwap
 
         (uint256 toYield, uint256 toTeam) = YieldDistributionFacet(address(deployment.diamond)).getTotalEthDistributed();
         assertEq(toYield, 0.8 ether);
@@ -162,8 +161,7 @@ contract PyreHookDiamondTest is Test, PyreHookDiamondDeployer {
                 ""
             );
 
-        // claimFees triggers poolManager.unlock → unlockCallback → extractAndDistributeSellFee
-        FeeLogicFacet(address(deployment.diamond)).claimFees(false);
+        // claimFees is now autonomous within afterSwap
 
         (uint256 toYield, uint256 toTeam) = YieldDistributionFacet(address(deployment.diamond)).getTotalEthDistributed();
 

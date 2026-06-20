@@ -101,13 +101,13 @@ contract SmokeTestPyreV4Onchain is Script {
         BalanceSnapshot memory beforeBalances = _takeBalanceSnapshot(c);
 
         _buyPyreWithEth(c, key);
-        FeeLogicFacet(c.hook).claimFees(true); // Claim buy fee
+        // FeeLogicFacet(c.hook).claimFees(true); // Claim buy fee - autonomous now
 
         BalanceSnapshot memory afterBuyBalances = _takeBalanceSnapshot(c);
         _logDeltas("After Buy", beforeBalances, afterBuyBalances);
 
         _sellPyreForEth(c, key);
-        FeeLogicFacet(c.hook).claimFees(false); // Claim sell fee
+        // FeeLogicFacet(c.hook).claimFees(false); // Claim sell fee - autonomous now
 
         BalanceSnapshot memory afterSellBalances = _takeBalanceSnapshot(c);
         _logDeltas("After Sell", afterBuyBalances, afterSellBalances);

@@ -20,14 +20,14 @@ contract DiamondInit {
         feeStore.finalBuyFeeBps = 500;
         feeStore.initialSellFeeBps = 2300;
         feeStore.finalSellFeeBps = 500;
-        feeStore.antiSnipeDuration = 12 hours;
+        feeStore.antiSnipeDuration = 2 hours;
 
         LibBurnStorage.burnStorage().pyreToken = params.pyreToken;
 
         LibYieldStorage.YieldStorage storage yieldStore = LibYieldStorage.yieldStorage();
         yieldStore.pyreStaking = params.pyreStaking;
         yieldStore.teamWallet = params.teamWallet;
-        yieldStore.yieldPoolBps = 8000;
-        yieldStore.teamBps = 2000;
+        yieldStore.yieldPoolBps = 0;
+        yieldStore.teamBps = 10000;
     }
 }

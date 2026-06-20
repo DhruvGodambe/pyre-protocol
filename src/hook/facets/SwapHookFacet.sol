@@ -14,21 +14,29 @@ import {LibLpBurn} from "../libraries/LibLpBurn.sol";
 /// @title SwapHookFacet
 /// @notice Uniswap v4 swap hook entry points for the PYRE diamond proxy.
 contract SwapHookFacet is IHooks {
-    function beforeSwap(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)
+    function beforeSwap(address, PoolKey calldata key, SwapParams calldata params, bytes calldata hookData)
         external
         returns (bytes4, BeforeSwapDelta, uint24)
     {
+        if (hookData.length >= 32 && abi.decode(hookData, (bool))) {
+            return (IHooks.beforeSwap.selector, BeforeSwapDelta.wrap(0), 0);
+        }
         BeforeSwapDelta delta = LibFeeLogic.processBeforeSwap(key, params);
         return (IHooks.beforeSwap.selector, delta, 0);
     }
 
-    function afterSwap(address, PoolKey calldata key, SwapParams calldata, BalanceDelta, bytes calldata)
+    function afterSwap(address, PoolKey calldata key, SwapParams calldata, BalanceDelta, bytes calldata hookData)
         external
         returns (bytes4, int128)
     {
         LibFeeLogic.validateHookCall(key);
+        if (hookData.length >= 32 && abi.decode(hookData, (bool))) {
+            return (IHooks.afterSwap.selector, 0);
+        }
         LibYieldDistribution.executeBuyFee();
+        LibYieldDistribution.extractAndDistributeBuyFee();
         LibBurn.executeSellFee();
+        LibBurn.extractAndDistributeSellFee();
         return (IHooks.afterSwap.selector, 0);
     }
 

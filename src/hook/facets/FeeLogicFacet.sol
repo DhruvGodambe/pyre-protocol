@@ -22,7 +22,7 @@ contract FeeLogicFacet is IUnlockCallback {
     uint256 public constant DEFAULT_FINAL_BUY_FEE_BPS = 500;
     uint256 public constant DEFAULT_INITIAL_SELL_FEE_BPS = 2300;
     uint256 public constant DEFAULT_FINAL_SELL_FEE_BPS = 500;
-    uint256 public constant DEFAULT_ANTI_SNIPE_DURATION = 12 hours;
+    uint256 public constant DEFAULT_ANTI_SNIPE_DURATION = 2 hours;
 
     event PoolRegistered(bytes32 indexed poolId, address poolManager);
     event AntiSnipeConfigUpdated(

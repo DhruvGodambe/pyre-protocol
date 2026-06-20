@@ -52,7 +52,7 @@ library LibBurn {
                 amountSpecified: -int256(amountToSwap),
                 sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
             }),
-            ""
+            abi.encode(true)
         );
 
         poolManager.burn(address(this), uint160(Currency.unwrap(feeStore.pyreCurrency)), amountToSwap);
