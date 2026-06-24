@@ -82,9 +82,6 @@ contract PyreHookDiamondTest is Test, PyreHookDiamondDeployer {
         assertEq(FeeLogicFacet(address(deployment.diamond)).getCurrentBuyFeeBps(), 1000);
 
         vm.warp(launchTime + 6 hours);
-        assertEq(FeeLogicFacet(address(deployment.diamond)).getCurrentBuyFeeBps(), 750);
-
-        vm.warp(launchTime + 12 hours);
         assertEq(FeeLogicFacet(address(deployment.diamond)).getCurrentBuyFeeBps(), 500);
     }
 
@@ -95,7 +92,7 @@ contract PyreHookDiamondTest is Test, PyreHookDiamondDeployer {
         assertEq(FeeLogicFacet(address(deployment.diamond)).getCurrentSellFeeBps(), 500);
     }
 
-    function test_BuyFeeRoutesEthToYieldAndTeam() public {
+    function test_BuyFeeRoutesEthToTeam() public {
         uint256 ethIn = 10 ether;
         uint256 expectedFee = 1 ether;
 
@@ -128,8 +125,7 @@ contract PyreHookDiamondTest is Test, PyreHookDiamondDeployer {
         // claimFees is now autonomous within afterSwap
 
         (uint256 toYield, uint256 toTeam) = YieldDistributionFacet(address(deployment.diamond)).getTotalEthDistributed();
-        assertEq(toYield, 0.8 ether);
-        assertEq(toTeam, 0.2 ether);
+        assertEq(toTeam, 1 ether);
     }
 
     function test_SellFeeSwapsAndDistributesEth() public {
@@ -165,9 +161,8 @@ contract PyreHookDiamondTest is Test, PyreHookDiamondDeployer {
 
         (uint256 toYield, uint256 toTeam) = YieldDistributionFacet(address(deployment.diamond)).getTotalEthDistributed();
 
-        // 80% to yield, 20% to team
-        assertEq(toYield, (expectedEthReceived * 80) / 100);
-        assertEq(toTeam, (expectedEthReceived * 20) / 100);
+        // 100% to team
+        assertEq(toTeam, expectedEthReceived );
     }
 
     function test_RevertOnUnregisteredPool() public {
