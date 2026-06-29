@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {Script} from "forge-std/Script.sol";
 import {PyreToken} from "../src/tokens/PyreToken.sol";
 import {PyreStaking} from "../src/staking/PyreStaking.sol";
-import {FireSpirit} from "../src/nft/FireSpirit.sol";
+import {Acolyte} from "../src/nft/Acolyte.sol";
 import {ImmolatedGate} from "../src/gate/ImmolatedGate.sol";
 import {MockPyreWeightFactors} from "../src/mocks/MockPyreWeightFactors.sol";
 
@@ -12,7 +12,7 @@ contract DeployPyre is Script {
     struct Deployment {
         PyreToken token;
         PyreStaking staking;
-        FireSpirit fireSpirit;
+        Acolyte acolyte;
         ImmolatedGate immolatedGate;
     }
 
@@ -27,11 +27,11 @@ contract DeployPyre is Script {
         MockPyreWeightFactors bootstrap = new MockPyreWeightFactors();
         deployment.staking = new PyreStaking(admin, address(deployment.token), launchTime, address(bootstrap));
 
-        deployment.fireSpirit = new FireSpirit(admin, address(deployment.token), address(deployment.staking));
+        deployment.acolyte = new Acolyte(admin, address(deployment.token), address(deployment.staking));
 
         deployment.token.setStakingContract(address(deployment.staking));
-        deployment.token.setBurnTracker(address(deployment.fireSpirit));
-        deployment.staking.setWeightFactors(address(deployment.fireSpirit));
+        deployment.token.setBurnTracker(address(deployment.acolyte));
+        deployment.staking.setWeightFactors(address(deployment.acolyte));
 
         address initialMintTo = vm.envOr("PYRE_INITIAL_MINT_TO", address(0));
         uint256 initialMintAmount = vm.envOr("PYRE_INITIAL_MINT_AMOUNT", uint256(0));
@@ -39,7 +39,7 @@ contract DeployPyre is Script {
             deployment.token.mint(initialMintTo, initialMintAmount);
         }
 
-        deployment.immolatedGate = new ImmolatedGate(address(deployment.token), address(deployment.fireSpirit));
+        deployment.immolatedGate = new ImmolatedGate(address(deployment.token), address(deployment.acolyte));
 
         vm.stopBroadcast();
         // Deploy PyreHookDiamond separately via DeployPyreHook.s.sol and call:

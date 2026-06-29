@@ -242,14 +242,12 @@ abstract contract PyreHookDiamondDeployer {
     }
 
     function _lpBurnSelectors() internal pure returns (bytes4[] memory s) {
-        s = new bytes4[](8);
-        s[0] = LpBurnFacet.configureFireSpirit.selector;
-        s[1] = LpBurnFacet.getFireSpirit.selector;
+        s = new bytes4[](6);
+        s[0] = LpBurnFacet.configureAcolyte.selector;
+        s[1] = LpBurnFacet.getAcolyte.selector;
         s[2] = LpBurnFacet.configurePositionManager.selector;
         s[3] = LpBurnFacet.getPositionManager.selector;
         s[4] = LpBurnFacet.burnLpPosition.selector;
         s[5] = LpBurnFacet.getTotalLpBurns.selector;
-        s[6] = LpBurnFacet.getTotalPyreBurnedFromLp.selector;
-        s[7] = LpBurnFacet.getTotalEthRoutedFromLp.selector;
     }
 }

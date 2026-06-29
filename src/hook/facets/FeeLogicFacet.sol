@@ -23,6 +23,9 @@ contract FeeLogicFacet is IUnlockCallback {
     uint256 public constant DEFAULT_INITIAL_SELL_FEE_BPS = 2300;
     uint256 public constant DEFAULT_FINAL_SELL_FEE_BPS = 500;
     uint256 public constant DEFAULT_ANTI_SNIPE_DURATION = 2 hours;
+    uint256 public constant MAX_FEE_BPS = 1500; // 15% hard ceiling — prevents honeypot configs
+
+    error FeesExceedMaximum(uint256 provided, uint256 maximum);
 
     event PoolRegistered(bytes32 indexed poolId, address poolManager);
     event AntiSnipeConfigUpdated(
@@ -59,6 +62,10 @@ contract FeeLogicFacet is IUnlockCallback {
         uint256 antiSnipeDuration
     ) external {
         LibDiamond.enforceIsContractOwner();
+        if (initialBuyFeeBps > MAX_FEE_BPS) revert FeesExceedMaximum(initialBuyFeeBps, MAX_FEE_BPS);
+        if (finalBuyFeeBps > MAX_FEE_BPS) revert FeesExceedMaximum(finalBuyFeeBps, MAX_FEE_BPS);
+        if (initialSellFeeBps > MAX_FEE_BPS) revert FeesExceedMaximum(initialSellFeeBps, MAX_FEE_BPS);
+        if (finalSellFeeBps > MAX_FEE_BPS) revert FeesExceedMaximum(finalSellFeeBps, MAX_FEE_BPS);
         LibFeeLogicStorage.FeeLogicStorage storage s = LibFeeLogicStorage.feeLogicStorage();
         s.initialBuyFeeBps = initialBuyFeeBps;
         s.finalBuyFeeBps = finalBuyFeeBps;

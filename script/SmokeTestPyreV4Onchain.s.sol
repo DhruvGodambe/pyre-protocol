@@ -28,7 +28,7 @@ contract SmokeTestPyreV4Onchain is Script {
 
     address internal constant DEFAULT_PYRE_TOKEN = 0xaA46dd2434dE4b06Da8D4F7f0Ace4e152EecbbA6;
     address internal constant DEFAULT_PYRE_STAKING = 0x61564EE98d9eFDc198AE6a48dFCd864C7F06A3B3;
-    address internal constant DEFAULT_FIRE_SPIRIT = 0xB14Fe355E67a2c6F08a8B0291aA188B62718264A;
+    address internal constant DEFAULT_ACOLYTE = 0xB14Fe355E67a2c6F08a8B0291aA188B62718264A;
     address internal constant DEFAULT_HOOK = address(0xaB0Ae552Ee5933935e39393D32b4034E75fD3Ff8);
     address internal constant DEFAULT_TEAM = 0xF93E7518F79C2E1978D6862Dbf161270040e623E;
     address internal constant DEFAULT_SWAP_ROUTER = 0x00000000000044a361Ae3cAc094c9D1b14Eece97;
@@ -41,7 +41,7 @@ contract SmokeTestPyreV4Onchain is Script {
         address swapRouter;
         address pyreToken;
         address staking;
-        address fireSpirit;
+        address acolyte;
         address hook;
         address team;
         uint24 fee;
@@ -124,7 +124,7 @@ contract SmokeTestPyreV4Onchain is Script {
         c.modifyRouter = vm.envOr("MODIFY_ROUTER", DEFAULT_MODIFY_ROUTER);
         c.pyreToken = vm.envOr("PYRE_TOKEN", DEFAULT_PYRE_TOKEN);
         c.staking = vm.envOr("PYRE_STAKING", DEFAULT_PYRE_STAKING);
-        c.fireSpirit = vm.envOr("FIRE_SPIRIT", DEFAULT_FIRE_SPIRIT);
+        c.acolyte = vm.envOr("ACOLYTE", DEFAULT_ACOLYTE);
         c.hook = vm.envOr("PYRE_HOOK", DEFAULT_HOOK);
         c.team = vm.envOr("PYRE_TEAM_WALLET", DEFAULT_TEAM);
         c.tester = vm.envOr("PYRE_TESTER", DEFAULT_TEAM);
@@ -226,7 +226,7 @@ contract SmokeTestPyreV4Onchain is Script {
         console2.log("swapRouter", c.swapRouter);
         console2.log("pyreToken", c.pyreToken);
         console2.log("staking", c.staking);
-        console2.log("fireSpirit", c.fireSpirit);
+        console2.log("acolyte", c.acolyte);
         console2.log("hook", c.hook);
         console2.log("team", c.team);
         console2.log("tester", c.tester);

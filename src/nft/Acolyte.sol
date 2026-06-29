@@ -8,9 +8,9 @@ import {IPyreWeightFactors} from "../interfaces/IPyreWeightFactors.sol";
 import {IPyreStaking} from "../interfaces/IPyreStaking.sol";
 import {IPyreStakingHooks} from "../interfaces/IPyreStakingHooks.sol";
 
-/// @title FireSpirit
+/// @title Acolyte
 /// @notice Soulbound progression NFT earned through cumulative $PYRE burns.
-contract FireSpirit is ERC721, AccessControl, IBurnTracker, IPyreWeightFactors {
+contract Acolyte is ERC721, AccessControl, IBurnTracker, IPyreWeightFactors {
     bytes32 public constant LP_RECORDER_ROLE = keccak256("LP_RECORDER_ROLE");
 
     uint256 public constant WAD = 1e18;
@@ -38,18 +38,18 @@ contract FireSpirit is ERC721, AccessControl, IBurnTracker, IPyreWeightFactors {
     mapping(address => uint256) public pendingBurn;
     mapping(address => uint256) public walletToTokenId;
     mapping(address => bool) public lpBurners;
-    mapping(uint256 => uint256) public spiritCumulativeBurn;
-    mapping(uint256 => Stage) public spiritStage;
+    mapping(uint256 => uint256) public acolyteCumulativeBurn;
+    mapping(uint256 => Stage) public acolyteStage;
 
-    event SpiritMinted(address indexed wallet, uint256 indexed tokenId, Stage stage, uint256 cumulativeBurn);
-    event SpiritUpgraded(uint256 indexed tokenId, Stage stage, uint256 cumulativeBurn);
+    event AcolyteMinted(address indexed wallet, uint256 indexed tokenId, Stage stage, uint256 cumulativeBurn);
+    event AcolyteUpgraded(uint256 indexed tokenId, Stage stage, uint256 cumulativeBurn);
     event LpBurnerFlagged(address indexed wallet);
 
     error OnlyPyreToken();
     error InvalidRecipient();
-    error NoSpirit(address account);
+    error NoAcolyte(address account);
 
-    constructor(address admin, address pyreToken_, address pyreStaking_) ERC721("Fire Spirit", "SPIRIT") {
+    constructor(address admin, address pyreToken_, address pyreStaking_) ERC721("Acolyte", "ACOLYTE") {
         pyreToken = pyreToken_;
         pyreStaking = IPyreStakingHooks(pyreStaking_);
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -65,12 +65,12 @@ contract FireSpirit is ERC721, AccessControl, IBurnTracker, IPyreWeightFactors {
             uint256 pending = pendingBurn[account] + amount;
             pendingBurn[account] = pending;
             if (pending >= EMBER_THRESHOLD) {
-                _mintSpirit(account, pending);
+                _mintAcolyte(account, pending);
             }
             return;
         }
 
-        _applyBurnToSpirit(tokenId, amount);
+        _applyBurnToAcolyte(tokenId, amount);
         pyreStaking.onWeightFactorsChanged(account);
     }
 
@@ -83,7 +83,7 @@ contract FireSpirit is ERC721, AccessControl, IBurnTracker, IPyreWeightFactors {
     function nftStageMultiplier(address account) external view returns (uint256) {
         uint256 tokenId = walletToTokenId[account];
         if (tokenId == 0 || _ownerOf(tokenId) != account) return WAD;
-        return _stageMultiplier(spiritStage[tokenId]);
+        return _stageMultiplier(acolyteStage[tokenId]);
     }
 
     function lpBurnBonus(address account) external view returns (uint256) {
@@ -92,31 +92,31 @@ contract FireSpirit is ERC721, AccessControl, IBurnTracker, IPyreWeightFactors {
 
     function stageOf(address account) external view returns (Stage) {
         uint256 tokenId = walletToTokenId[account];
-        if (tokenId == 0 || _ownerOf(tokenId) != account) revert NoSpirit(account);
-        return spiritStage[tokenId];
+        if (tokenId == 0 || _ownerOf(tokenId) != account) revert NoAcolyte(account);
+        return acolyteStage[tokenId];
     }
 
-    function _mintSpirit(address wallet, uint256 cumulativeBurn) internal {
+    function _mintAcolyte(address wallet, uint256 cumulativeBurn) internal {
         uint256 tokenId = _nextTokenId++;
         pendingBurn[wallet] = 0;
-        spiritCumulativeBurn[tokenId] = cumulativeBurn;
+        acolyteCumulativeBurn[tokenId] = cumulativeBurn;
 
         Stage stage = _stageForBurn(cumulativeBurn);
-        spiritStage[tokenId] = stage;
+        acolyteStage[tokenId] = stage;
 
         _safeMint(wallet, tokenId);
-        emit SpiritMinted(wallet, tokenId, stage, cumulativeBurn);
+        emit AcolyteMinted(wallet, tokenId, stage, cumulativeBurn);
         pyreStaking.onWeightFactorsChanged(wallet);
     }
 
-    function _applyBurnToSpirit(uint256 tokenId, uint256 amount) internal {
-        uint256 cumulative = spiritCumulativeBurn[tokenId] + amount;
-        spiritCumulativeBurn[tokenId] = cumulative;
+    function _applyBurnToAcolyte(uint256 tokenId, uint256 amount) internal {
+        uint256 cumulative = acolyteCumulativeBurn[tokenId] + amount;
+        acolyteCumulativeBurn[tokenId] = cumulative;
 
         Stage stage = _stageForBurn(cumulative);
-        if (uint8(stage) > uint8(spiritStage[tokenId])) {
-            spiritStage[tokenId] = stage;
-            emit SpiritUpgraded(tokenId, stage, cumulative);
+        if (uint8(stage) > uint8(acolyteStage[tokenId])) {
+            acolyteStage[tokenId] = stage;
+            emit AcolyteUpgraded(tokenId, stage, cumulative);
         }
     }
 

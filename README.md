@@ -10,11 +10,11 @@ Built with [Foundry](https://book.getfoundry.sh/) · Solidity `0.8.24` · OpenZe
 
 | Layer | Contract | Role |
 |-------|----------|------|
-| Token | `PyreToken` | ERC-20 with lazy decay, 7-day unstake drip |
+| Token | `PyreToken` | ERC-20 with lazy decay, 7-day unstake drip, **1B hard cap** |
 | Staking | `PyreStaking` | Stakes $PYRE (decay paused), accrues ETH yield |
-| NFT | `FireSpirit` | Burn-progression NFT; staking weight multipliers |
+| NFT | `Acolyte` | Burn-progression NFT; staking weight multipliers |
 | Gate | `ImmolatedGate` | Hall of the Immolated access flag |
-| Hook | `PyreHookDiamond` | Uniswap v4 diamond hook — swap fees, burns, yield routing |
+| Hook | `PyreHookDiamond` | Uniswap v4 diamond hook — swap fees, burns, yield routing, **15% max tax** |
 
 ```mermaid
 flowchart TB
@@ -27,8 +27,8 @@ flowchart TB
     User -->|stake / unstake| Staking
     Staking -->|stakeFor / unstakeFor| Token[PyreToken]
     User -->|burn| Token
-    Token -->|onPyreBurn| Spirit[FireSpirit]
-    Spirit -->|weight multipliers| Staking
+    Token -->|onPyreBurn| AcolyteNFT[Acolyte]
+    AcolyteNFT -->|weight multipliers| Staking
     User -->|immolate| Gate[ImmolatedGate]
 ```
 
@@ -36,8 +36,9 @@ flowchart TB
 
 ## $PYRE Token (`PyreToken`)
 
-Standard ERC-20 with three balance buckets:
+Standard ERC-20 with three balance buckets and a **hard supply cap**:
 
+- **Hard Supply Cap** — 1,000,000,000 $PYRE (enforced on-chain in `mint`)
 - **Liquid** — transferable; subject to epoch decay
 - **Staked** — held by `PyreStaking`; decay paused
 - **Drip** — 7-day linear vesting after unstake; no decay until claimed
@@ -61,7 +62,7 @@ Only `PyreStaking` may call `stakeFor` / `unstakeFor`. Unstaking starts a 7-day 
 
 ### Burns
 
-`burn()` and `burnFrom()` destroy liquid $PYRE and notify `FireSpirit` via the configured `burnTracker`.
+`burn()` and `burnFrom()` destroy liquid $PYRE and notify `Acolyte` via the configured `burnTracker`.
 
 ---
 
@@ -79,8 +80,8 @@ weight = stakedAmount × NFT stage multiplier × LP burn bonus × whitelist boos
 
 | Multiplier | Source | Default |
 |------------|--------|---------|
-| NFT stage | `FireSpirit` | 1× – 3× |
-| LP burn bonus | `FireSpirit.flagLpBurner` | +20% (1.2×) |
+| NFT stage | `Acolyte` | 1× – 3× |
+| LP burn bonus | `Acolyte.flagLpBurner` | +20% (1.2×) |
 | Whitelist boost | Stake within 48h of launch | 1.2× for first 7 days |
 
 ### ETH funding
@@ -90,11 +91,11 @@ weight = stakedAmount × NFT stage multiplier × LP burn bonus × whitelist boos
 
 ### NFT transfer settlement
 
-When a `FireSpirit` is transferred, `onWeightFactorsChanged` settles the seller's pending ETH rewards and refreshes both parties' staking weights. Yield earned before the transfer goes to the seller; the buyer accrues from that point forward.
+When an `Acolyte` is transferred, `onWeightFactorsChanged` settles the seller's pending ETH rewards and refreshes both parties' staking weights. Yield earned before the transfer goes to the seller; the buyer accrues from that point forward.
 
 ---
 
-## Fire Spirit NFT (`FireSpirit`)
+## Acolyte NFT (`Acolyte`)
 
 Earned automatically through cumulative $PYRE burns. Partial burns accumulate — no progress is lost between transactions.
 
@@ -107,11 +108,11 @@ Earned automatically through cumulative $PYRE burns. Partial burns accumulate �
 | FORGE | 150,000 $PYRE | 2× |
 | PYRE | 300,000 $PYRE | 3× |
 
-A wallet holding a PYRE-stage spirit staking 10,000 $PYRE has the same yield weight as a non-NFT holder staking 30,000 $PYRE.
+A wallet holding a PYRE-stage acolyte staking 10,000 $PYRE has the same yield weight as a non-NFT holder staking 30,000 $PYRE.
 
 ### LP burners
 
-Wallets that burn ETH+$PYRE LP positions are flagged on-chain via `flagLpBurner()` (`LP_RECORDER_ROLE`). Flagged wallets receive a +20% yield weight bonus on top of their stage multiplier.
+Wallets that lock their ETH+$PYRE Uniswap v4 LP positions are flagged on-chain via `flagLpBurner()` (`LP_RECORDER_ROLE`). Flagged wallets receive a +20% yield weight bonus on top of their stage multiplier. This is triggered by calling `burnLpPosition(tokenId)` on the hook diamond.
 
 ---
 
@@ -119,10 +120,10 @@ Wallets that burn ETH+$PYRE LP positions are flagged on-chain via `flagLpBurner(
 
 Entry requires:
 
-1. A **PYRE-stage** `FireSpirit` (300k cumulative burn)
+1. A **PYRE-stage** `Acolyte` (300k cumulative burn)
 2. An additional **10,000 $PYRE** burn
 
-Sets `isImmolated[address] = true` for frontend access to the Hall of the Immolated. No hard supply cap — exclusivity scales naturally as $PYRE price rises.
+Sets `isImmolated[address] = true` for frontend access to the Hall of the Immolated.
 
 ```solidity
 token.approve(address(gate), 10_000 ether);
@@ -138,31 +139,24 @@ Deployed as an **EIP-2535 Diamond Proxy** — a single proxy holding all ETH and
 | Facet | Responsibility |
 |-------|----------------|
 | `SwapHookFacet` | `beforeSwap` / `afterSwap` IHooks callbacks |
-| `FeeLogicFacet` | Fee calculation, anti-snipe schedule, pool registration |
+| `FeeLogicFacet` | Fee calculation, anti-snipe schedule, pool registration, **15% max tax ceiling** |
 | `BurnFacet` | Permanent $PYRE burn on sell-side swaps |
 | `YieldDistributionFacet` | Routes buy-side ETH fees (80% staking / 20% team) |
+| `LpBurnFacet` | LP position locking and Acolyte flagging |
 | `DiamondCutFacet` | EIP-2535 upgrades |
 | `DiamondLoupeFacet` | Introspection |
 | `OwnershipFacet` | Admin ownership |
 
-Each facet uses **EIP-7201 namespaced storage** to prevent slot collisions within the diamond.
-
-### Swap fees
+### Swap fees & Honeypot Protection
 
 | Side | At launch | After 12 hours | Destination |
 |------|-----------|----------------|-------------|
 | Buy (ETH in) | 10% | 5% | 80% → yield pool · 20% → team |
 | Sell (PYRE in) | 23% | 5% | 100% permanently burned |
 
+**Honeypot Protection:** Fees are subject to a **hard 15% ceiling** (`MAX_FEE_BPS = 1500`). Any attempt to configure fees above this value will revert, ensuring the contract can never be turned into a honeypot.
+
 Fees decay linearly over 12 hours (anti-snipe), then settle at 5% buy / 5% sell.
-
-### Pool spoofing protection
-
-Every hook callback validates:
-
-1. `msg.sender` is the registered Uniswap v4 `PoolManager`
-2. `PoolKey` hashes to the registered pool ID
-3. `key.hooks` is the diamond address
 
 ### Hook address requirement
 
@@ -174,10 +168,10 @@ Uniswap v4 encodes required hook permissions in the contract address (low bits).
 
 ```
 PyreToken.stakingContract  →  PyreStaking
-PyreToken.burnTracker        →  FireSpirit
-PyreStaking.weightFactors    →  FireSpirit
+PyreToken.burnTracker        →  Acolyte
+PyreStaking.weightFactors    →  Acolyte
 PyreStaking.yieldRouter      →  PyreHookDiamond
-ImmolatedGate                →  PyreToken + FireSpirit (read-only + burnFrom)
+ImmolatedGate                →  PyreToken + Acolyte (read-only + burnFrom)
 ```
 
 ---
@@ -188,7 +182,7 @@ ImmolatedGate                →  PyreToken + FireSpirit (read-only + burnFrom)
 src/
 ├── tokens/PyreToken.sol
 ├── staking/PyreStaking.sol
-├── nft/FireSpirit.sol
+├── nft/Acolyte.sol
 ├── gate/ImmolatedGate.sol
 ├── hook/
 │   ├── diamond/          # EIP-2535 proxy + deployer
@@ -206,10 +200,10 @@ script/
 test/
 ├── PyreToken.t.sol
 ├── PyreStaking.t.sol
-├── FireSpirit.t.sol
+├── Acolyte.t.sol
 ├── ImmolatedGate.t.sol
 ├── PyreHookDiamond.t.sol
-└── PyreIntegration.t.sol
+└── PyreIntegrationTest.t.sol
 ```
 
 ---
@@ -237,18 +231,6 @@ forge build
 forge test -vv
 ```
 
-### Format
-
-```bash
-forge fmt
-```
-
-### Gas snapshots
-
-```bash
-forge snapshot
-```
-
 ---
 
 ## Deployment
@@ -261,12 +243,7 @@ forge script script/DeployPyre.s.sol:DeployPyre \
   --broadcast
 ```
 
-| Env var | Description | Default |
-|---------|-------------|---------|
-| `PYRE_ADMIN` | Protocol admin | `msg.sender` |
-| `PYRE_LAUNCH_TIME` | Launch timestamp (whitelist window) | `block.timestamp` |
-
-Deploys: `PyreToken`, `PyreStaking`, `FireSpirit`, `ImmolatedGate` — fully wired.
+Deploys: `PyreToken`, `PyreStaking`, `Acolyte`, `ImmolatedGate` — fully wired.
 
 ### 2. Uniswap v4 hook
 
@@ -275,15 +252,6 @@ forge script script/DeployPyreHook.s.sol:DeployPyreHook \
   --rpc-url $RPC_URL \
   --broadcast
 ```
-
-| Env var | Description |
-|---------|-------------|
-| `PYRE_TOKEN` | Deployed `PyreToken` address |
-| `PYRE_STAKING` | Deployed `PyreStaking` address |
-| `PYRE_TEAM_WALLET` | Receives 20% of buy-side ETH fees |
-| `POOL_MANAGER` | Uniswap v4 PoolManager |
-| `PYRE_POOL_FEE` | Pool LP fee tier (default `3000`) |
-| `PYRE_TICK_SPACING` | Pool tick spacing (default `60`) |
 
 After hook deploy:
 
@@ -296,7 +264,7 @@ staking.setYieldRouter(hookDiamondAddress)
 
 | Integration | Action |
 |-------------|--------|
-| LP burn router | Call `FireSpirit.flagLpBurner(wallet)` with `LP_RECORDER_ROLE` |
+| LP burn router | Call `Acolyte.flagLpBurner(wallet)` via `LpBurnFacet` |
 | Whitelist | Call `PyreStaking.setWhitelisted(wallet, true)` |
 | ETH rewards | Call `PyreStaking.notifyRewardAmount{value: X}(X, duration)` |
 

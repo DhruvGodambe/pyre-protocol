@@ -57,6 +57,7 @@ contract PyreToken is ERC20, AccessControl, IPyreToken {
     error StakingContractAlreadySet();
     error BurnTrackerAlreadySet();
     error OnlyStakingContract();
+    error SupplyCapExceeded(uint256 currentSupply, uint256 mintAmount, uint256 cap);
 
     constructor(address admin, string memory name_, string memory symbol_) ERC20(name_, symbol_) {
         protocolStartTime = block.timestamp;
@@ -111,6 +112,7 @@ contract PyreToken is ERC20, AccessControl, IPyreToken {
     }
 
     function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) {
+        if (_totalSupply + amount > MAX_SUPPLY) revert SupplyCapExceeded(_totalSupply, amount, MAX_SUPPLY);
         _mint(to, amount);
     }
 

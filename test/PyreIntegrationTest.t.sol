@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {PyreToken} from "../src/tokens/PyreToken.sol";
 import {PyreStaking} from "../src/staking/PyreStaking.sol";
-import {FireSpirit} from "../src/nft/FireSpirit.sol";
+import {Acolyte} from "../src/nft/Acolyte.sol";
 import {ImmolatedGate} from "../src/gate/ImmolatedGate.sol";
 import {MockPyreWeightFactors} from "../src/mocks/MockPyreWeightFactors.sol";
 
@@ -12,7 +12,7 @@ import {MockPyreWeightFactors} from "../src/mocks/MockPyreWeightFactors.sol";
 contract PyreIntegrationTest is Test {
     PyreToken internal token;
     PyreStaking internal staking;
-    FireSpirit internal spirit;
+    Acolyte internal acolyte;
     ImmolatedGate internal gate;
 
     address internal admin = makeAddr("admin");
@@ -29,40 +29,40 @@ contract PyreIntegrationTest is Test {
         token = new PyreToken(admin, "Pyre", "PYRE");
         MockPyreWeightFactors bootstrap = new MockPyreWeightFactors();
         staking = new PyreStaking(admin, address(token), launchTime, address(bootstrap));
-        spirit = new FireSpirit(admin, address(token), address(staking));
-        gate = new ImmolatedGate(address(token), address(spirit));
+        acolyte = new Acolyte(admin, address(token), address(staking));
+        gate = new ImmolatedGate(address(token), address(acolyte));
 
         vm.startPrank(admin);
         token.setStakingContract(address(staking));
-        token.setBurnTracker(address(spirit));
-        staking.setWeightFactors(address(spirit));
+        token.setBurnTracker(address(acolyte));
+        staking.setWeightFactors(address(acolyte));
         vm.stopPrank();
     }
 
     function test_DeploymentWiring() public view {
         assertEq(token.stakingContract(), address(staking));
-        assertEq(token.burnTracker(), address(spirit));
-        assertEq(address(staking.weightFactors()), address(spirit));
+        assertEq(token.burnTracker(), address(acolyte));
+        assertEq(address(staking.weightFactors()), address(acolyte));
         assertEq(address(gate.pyreToken()), address(token));
-        assertEq(address(gate.fireSpirit()), address(spirit));
-        assertEq(spirit.pyreToken(), address(token));
-        assertEq(address(spirit.pyreStaking()), address(staking));
+        assertEq(address(gate.acolyte()), address(acolyte));
+        assertEq(acolyte.pyreToken(), address(token));
+        assertEq(address(acolyte.pyreStaking()), address(staking));
     }
 
     function test_FullUserJourney() public {
         vm.prank(admin);
         token.mint(user, 350_000 ether);
 
-        // Burns accumulate → FireSpirit mint + stage progression
+        // Burns accumulate → Acolyte mint + stage progression
         vm.startPrank(user);
         token.burn(10_000 ether);
-        assertEq(spirit.walletToTokenId(user), 1);
+        assertEq(acolyte.walletToTokenId(user), 1);
 
         token.burn(290_000 ether);
-        assertEq(uint8(spirit.stageOf(user)), uint8(FireSpirit.Stage.PYRE));
+        assertEq(uint8(acolyte.stageOf(user)), uint8(Acolyte.Stage.PYRE));
         vm.stopPrank();
 
-        // Staking uses FireSpirit multipliers (3× PYRE stage)
+        // Staking uses Acolyte multipliers (3× PYRE stage)
         vm.deal(admin, 30 ether);
         vm.prank(admin);
         staking.notifyRewardAmount{value: 30 ether}(30 ether, 30 days);
@@ -92,13 +92,13 @@ contract PyreIntegrationTest is Test {
 
         // LP burner flag → +20% weight on restake
         vm.prank(admin);
-        spirit.flagLpBurner(user);
+        acolyte.flagLpBurner(user);
 
         vm.prank(user);
         staking.stake(10_000 ether);
         assertEq(staking.weightOf(user), 36_000 ether); // 10k × 3 × 1.2
 
-        // ImmolatedGate → PYRE spirit + 10k burn
+        // ImmolatedGate → PYRE acolyte + 10k burn
         vm.prank(user);
         staking.unstake(10_000 ether);
         vm.warp(block.timestamp + 7 days);
@@ -111,12 +111,12 @@ contract PyreIntegrationTest is Test {
         vm.stopPrank();
 
         assertTrue(gate.isImmolated(user));
-        assertEq(spirit.spiritCumulativeBurn(1), 310_000 ether);
+        assertEq(acolyte.acolyteCumulativeBurn(1), 310_000 ether);
     }
 
     function test_BurnTrackerOnlyAcceptsToken() public {
         vm.expectRevert();
-        spirit.onPyreBurn(user, 1 ether);
+        acolyte.onPyreBurn(user, 1 ether);
     }
 
     function test_StakingOnlyAcceptsStakingContract() public {
@@ -124,7 +124,7 @@ contract PyreIntegrationTest is Test {
         token.stakeFor(user, 1 ether);
     }
 
-    function test_WeightFactorsHookOnlyAcceptsFireSpirit() public {
+    function test_WeightFactorsHookOnlyAcceptsAcolyte() public {
         vm.expectRevert();
         staking.onWeightFactorsChanged(user);
     }
@@ -143,7 +143,7 @@ contract PyreIntegrationTest is Test {
         assertLt(token.liquidBalanceOf(user), 30_000 ether);
     }
 
-    function test_WhitelistBoostIntegratesWithFireSpiritWeight() public {
+    function test_WhitelistBoostIntegratesWithAcolyteWeight() public {
         vm.prank(admin);
         token.mint(user, 25_000 ether);
         vm.prank(admin);

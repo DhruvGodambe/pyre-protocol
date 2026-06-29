@@ -4,14 +4,14 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {PyreToken} from "../src/tokens/PyreToken.sol";
 import {PyreStaking} from "../src/staking/PyreStaking.sol";
-import {FireSpirit} from "../src/nft/FireSpirit.sol";
+import {Acolyte} from "../src/nft/Acolyte.sol";
 import {ImmolatedGate} from "../src/gate/ImmolatedGate.sol";
 import {MockPyreWeightFactors} from "../src/mocks/MockPyreWeightFactors.sol";
 
 contract ImmolatedGateTest is Test {
     PyreToken internal token;
     PyreStaking internal staking;
-    FireSpirit internal spirit;
+    Acolyte internal acolyte;
     ImmolatedGate internal gate;
 
     address internal admin = makeAddr("admin");
@@ -22,13 +22,13 @@ contract ImmolatedGateTest is Test {
         token = new PyreToken(admin, "Pyre", "PYRE");
         MockPyreWeightFactors bootstrap = new MockPyreWeightFactors();
         staking = new PyreStaking(admin, address(token), block.timestamp, address(bootstrap));
-        spirit = new FireSpirit(admin, address(token), address(staking));
-        gate = new ImmolatedGate(address(token), address(spirit));
+        acolyte = new Acolyte(admin, address(token), address(staking));
+        gate = new ImmolatedGate(address(token), address(acolyte));
 
         vm.startPrank(admin);
         token.setStakingContract(address(staking));
-        token.setBurnTracker(address(spirit));
-        staking.setWeightFactors(address(spirit));
+        token.setBurnTracker(address(acolyte));
+        staking.setWeightFactors(address(acolyte));
         token.mint(alice, 320_000 ether);
         token.mint(bob, 320_000 ether);
         vm.stopPrank();
@@ -38,7 +38,7 @@ contract ImmolatedGateTest is Test {
         vm.startPrank(account);
         token.burn(300_000 ether);
         vm.stopPrank();
-        assertEq(uint8(spirit.stageOf(account)), uint8(FireSpirit.Stage.PYRE));
+        assertEq(uint8(acolyte.stageOf(account)), uint8(Acolyte.Stage.PYRE));
     }
 
     function test_ImmolateSetsFlag() public {
@@ -64,10 +64,10 @@ contract ImmolatedGateTest is Test {
         vm.stopPrank();
 
         assertEq(token.totalSupply(), supplyBefore - 10_000 ether);
-        assertEq(spirit.spiritCumulativeBurn(1), 310_000 ether);
+        assertEq(acolyte.acolyteCumulativeBurn(1), 310_000 ether);
     }
 
-    function test_RevertWithoutPyreSpirit() public {
+    function test_RevertWithoutPyreAcolyte() public {
         vm.startPrank(bob);
         token.burn(10_000 ether);
         token.approve(address(gate), 10_000 ether);

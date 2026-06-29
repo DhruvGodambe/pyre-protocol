@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {PyreToken} from "../src/tokens/PyreToken.sol";
 import {PyreStaking} from "../src/staking/PyreStaking.sol";
-import {FireSpirit} from "../src/nft/FireSpirit.sol";
+import {Acolyte} from "../src/nft/Acolyte.sol";
 import {MockPyreWeightFactors} from "../src/mocks/MockPyreWeightFactors.sol";
 import {PyreHookDiamondDeployer, PyreHookCreate2Deployer} from "../script/utils/PyreHookDiamondDeployer.s.sol";
 import {PyreHookInitParams} from "../src/hook/init/DiamondInit.sol";
@@ -28,7 +28,7 @@ contract PyreHookDiamondTest is Test, PyreHookDiamondDeployer {
     PyreHookDiamondDeployer.Deployment internal deployment;
     PyreToken internal token;
     PyreStaking internal staking;
-    FireSpirit internal fireSpirit;
+    Acolyte internal acolyte;
     MockPoolManager internal poolManager;
 
     address internal admin = address(this);
@@ -44,7 +44,7 @@ contract PyreHookDiamondTest is Test, PyreHookDiamondDeployer {
         token = new PyreToken(admin, "Pyre", "PYRE");
         MockPyreWeightFactors bootstrap = new MockPyreWeightFactors();
         staking = new PyreStaking(admin, address(token), launchTime, address(bootstrap));
-        fireSpirit = new FireSpirit(admin, address(token), address(staking));
+        acolyte = new Acolyte(admin, address(token), address(staking));
 
         poolManager = new MockPoolManager();
 
@@ -65,12 +65,12 @@ contract PyreHookDiamondTest is Test, PyreHookDiamondDeployer {
         // accidentally consumed by a view call (e.g. LP_RECORDER_ROLE()).
         vm.startPrank(admin);
         token.setStakingContract(address(staking));
-        staking.setWeightFactors(address(fireSpirit));
+        staking.setWeightFactors(address(acolyte));
         staking.setYieldRouter(address(deployment.diamond));
         FeeLogicFacet(address(deployment.diamond))
             .configurePool(address(poolManager), poolKey, poolKey.currency1, poolKey.currency0, launchTime);
-        fireSpirit.grantRole(fireSpirit.LP_RECORDER_ROLE(), address(deployment.diamond));
-        LpBurnFacet(address(deployment.diamond)).configureFireSpirit(address(fireSpirit));
+        acolyte.grantRole(acolyte.LP_RECORDER_ROLE(), address(deployment.diamond));
+        LpBurnFacet(address(deployment.diamond)).configureAcolyte(address(acolyte));
         vm.stopPrank();
     }
 
@@ -217,8 +217,8 @@ contract PyreHookDiamondTest is Test, PyreHookDiamondDeployer {
         vm.prank(trader);
         LpBurnFacet(address(deployment.diamond)).burnLpPosition(tokenId);
 
-        // Verify FireSpirit flagged the user
-        assertTrue(fireSpirit.lpBurners(trader));
+        // Verify Acolyte flagged the user
+        assertTrue(acolyte.lpBurners(trader));
 
         // Verify accounting
         assertEq(LpBurnFacet(address(deployment.diamond)).getTotalLpBurns(), 1);

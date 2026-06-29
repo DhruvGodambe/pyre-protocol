@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {LibDiamond} from "../diamond/libraries/LibDiamond.sol";
 import {LibLpBurnStorage} from "../libraries/LibLpBurnStorage.sol";
-import {IFireSpirit} from "../../interfaces/IFireSpirit.sol";
+import {IAcolyte} from "../../interfaces/IAcolyte.sol";
 import {IERC721} from "forge-std/interfaces/IERC721.sol";
 
 // Interfaces and types from v4
@@ -14,15 +14,15 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 /// @title LpBurnFacet
 /// @notice Admin configuration and LP position burn feature.
 contract LpBurnFacet {
-    event FireSpiritConfigured(address indexed fireSpirit);
+    event AcolyteConfigured(address indexed acolyte);
     event PositionManagerConfigured(address indexed positionManager);
     event LpPositionBurned(address indexed burner, uint256 indexed tokenId);
 
-    /// @notice Set the FireSpirit contract address so the hook can flag LP burners.
-    function configureFireSpirit(address fireSpirit_) external {
+    /// @notice Set the Acolyte contract address so the hook can flag LP burners.
+    function configureAcolyte(address acolyte_) external {
         LibDiamond.enforceIsContractOwner();
-        LibLpBurnStorage.lpBurnStorage().fireSpirit = fireSpirit_;
-        emit FireSpiritConfigured(fireSpirit_);
+        LibLpBurnStorage.lpBurnStorage().acolyte = acolyte_;
+        emit AcolyteConfigured(acolyte_);
     }
 
     /// @notice Set the V4 PositionManager address.
@@ -32,8 +32,8 @@ contract LpBurnFacet {
         emit PositionManagerConfigured(positionManager_);
     }
 
-    function getFireSpirit() external view returns (address) {
-        return LibLpBurnStorage.lpBurnStorage().fireSpirit;
+    function getAcolyte() external view returns (address) {
+        return LibLpBurnStorage.lpBurnStorage().acolyte;
     }
 
     function getPositionManager() external view returns (address) {
@@ -44,10 +44,10 @@ contract LpBurnFacet {
     /// @param tokenId The V4 position NFT token ID.
     function burnLpPosition(uint256 tokenId) external {
         address positionManager = LibLpBurnStorage.lpBurnStorage().positionManager;
-        address fireSpirit = LibLpBurnStorage.lpBurnStorage().fireSpirit;
+        address acolyte = LibLpBurnStorage.lpBurnStorage().acolyte;
 
         require(positionManager != address(0), "PositionManager not configured");
-        require(fireSpirit != address(0), "FireSpirit not configured");
+        require(acolyte != address(0), "Acolyte not configured");
 
         // 1. Get position info to verify it's our pool
         (PoolKey memory key,) = IPositionManager(positionManager).getPoolAndPositionInfo(tokenId);
@@ -59,8 +59,8 @@ contract LpBurnFacet {
         //    (User must have approved the hook to transfer their token)
         IERC721(positionManager).transferFrom(msg.sender, address(0x000000000000000000000000000000000000dEaD), tokenId);
 
-        // 4. Update FireSpirit to flag the LP burner
-        IFireSpirit(fireSpirit).flagLpBurner(msg.sender);
+        // 4. Update Acolyte to flag the LP burner
+        IAcolyte(acolyte).flagLpBurner(msg.sender);
 
         // 5. Accounting
         LibLpBurnStorage.lpBurnStorage().totalLpPositionBurns += 1;
@@ -69,13 +69,5 @@ contract LpBurnFacet {
 
     function getTotalLpBurns() external view returns (uint256) {
         return LibLpBurnStorage.lpBurnStorage().totalLpPositionBurns;
-    }
-
-    function getTotalPyreBurnedFromLp() external view returns (uint256) {
-        return LibLpBurnStorage.lpBurnStorage().totalPyreBurnedFromLp;
-    }
-
-    function getTotalEthRoutedFromLp() external view returns (uint256) {
-        return LibLpBurnStorage.lpBurnStorage().totalEthRoutedFromLp;
     }
 }

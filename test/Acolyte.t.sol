@@ -4,13 +4,13 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {PyreToken} from "../src/tokens/PyreToken.sol";
 import {PyreStaking} from "../src/staking/PyreStaking.sol";
-import {FireSpirit} from "../src/nft/FireSpirit.sol";
+import {Acolyte} from "../src/nft/Acolyte.sol";
 import {MockPyreWeightFactors} from "../src/mocks/MockPyreWeightFactors.sol";
 
-contract FireSpiritTest is Test {
+contract AcolyteTest is Test {
     PyreToken internal token;
     PyreStaking internal staking;
-    FireSpirit internal spirit;
+    Acolyte internal acolyte;
 
     address internal admin = makeAddr("admin");
     address internal alice = makeAddr("alice");
@@ -20,12 +20,12 @@ contract FireSpiritTest is Test {
         token = new PyreToken(admin, "Pyre", "PYRE");
         MockPyreWeightFactors bootstrap = new MockPyreWeightFactors();
         staking = new PyreStaking(admin, address(token), block.timestamp, address(bootstrap));
-        spirit = new FireSpirit(admin, address(token), address(staking));
+        acolyte = new Acolyte(admin, address(token), address(staking));
 
         vm.startPrank(admin);
         token.setStakingContract(address(staking));
-        token.setBurnTracker(address(spirit));
-        staking.setWeightFactors(address(spirit));
+        token.setBurnTracker(address(acolyte));
+        staking.setWeightFactors(address(acolyte));
         token.mint(alice, 500_000 ether);
         token.mint(bob, 500_000 ether);
         vm.stopPrank();
@@ -35,32 +35,32 @@ contract FireSpiritTest is Test {
         vm.startPrank(alice);
         token.burn(4_000 ether);
         token.burn(3_000 ether);
-        assertEq(spirit.walletToTokenId(alice), 0);
+        assertEq(acolyte.walletToTokenId(alice), 0);
 
         token.burn(3_500 ether);
         vm.stopPrank();
 
-        assertEq(spirit.walletToTokenId(alice), 1);
-        assertEq(uint8(spirit.stageOf(alice)), uint8(FireSpirit.Stage.EMBER));
-        assertEq(spirit.nftStageMultiplier(alice), 1e18);
+        assertEq(acolyte.walletToTokenId(alice), 1);
+        assertEq(uint8(acolyte.stageOf(alice)), uint8(Acolyte.Stage.EMBER));
+        assertEq(acolyte.nftStageMultiplier(alice), 1e18);
     }
 
     function test_StageProgressionOnSameTokenId() public {
         vm.startPrank(alice);
         token.burn(10_000 ether);
-        assertEq(uint8(spirit.stageOf(alice)), uint8(FireSpirit.Stage.EMBER));
+        assertEq(uint8(acolyte.stageOf(alice)), uint8(Acolyte.Stage.EMBER));
 
         token.burn(65_000 ether);
-        assertEq(uint8(spirit.stageOf(alice)), uint8(FireSpirit.Stage.FLAME));
-        assertEq(spirit.nftStageMultiplier(alice), 15e17);
+        assertEq(uint8(acolyte.stageOf(alice)), uint8(Acolyte.Stage.FLAME));
+        assertEq(acolyte.nftStageMultiplier(alice), 15e17);
 
         token.burn(75_000 ether);
-        assertEq(uint8(spirit.stageOf(alice)), uint8(FireSpirit.Stage.FORGE));
-        assertEq(spirit.nftStageMultiplier(alice), 2e18);
+        assertEq(uint8(acolyte.stageOf(alice)), uint8(Acolyte.Stage.FORGE));
+        assertEq(acolyte.nftStageMultiplier(alice), 2e18);
 
         token.burn(150_000 ether);
-        assertEq(uint8(spirit.stageOf(alice)), uint8(FireSpirit.Stage.PYRE));
-        assertEq(spirit.nftStageMultiplier(alice), 3e18);
+        assertEq(uint8(acolyte.stageOf(alice)), uint8(Acolyte.Stage.PYRE));
+        assertEq(acolyte.nftStageMultiplier(alice), 3e18);
         vm.stopPrank();
     }
 
@@ -96,9 +96,9 @@ contract FireSpiritTest is Test {
         token.burn(10_000 ether);
 
         vm.prank(admin);
-        spirit.flagLpBurner(alice);
+        acolyte.flagLpBurner(alice);
 
-        assertEq(spirit.lpBurnBonus(alice), 12e17);
+        assertEq(acolyte.lpBurnBonus(alice), 12e17);
         assertEq(staking.weightOf(alice), 0);
 
         vm.prank(alice);
@@ -124,11 +124,11 @@ contract FireSpiritTest is Test {
 
         uint256 balanceBefore = alice.balance;
         vm.prank(alice);
-        spirit.transferFrom(alice, bob, 1);
+        acolyte.transferFrom(alice, bob, 1);
 
         assertEq(alice.balance, balanceBefore + expected);
         assertEq(staking.earned(alice), 0);
-        assertEq(spirit.ownerOf(1), bob);
+        assertEq(acolyte.ownerOf(1), bob);
 
         vm.prank(bob);
         staking.stake(10_000 ether);
@@ -153,7 +153,7 @@ contract FireSpiritTest is Test {
         uint256 aliceBeforeTransfer = staking.earned(alice);
 
         vm.prank(alice);
-        spirit.transferFrom(alice, bob, 1);
+        acolyte.transferFrom(alice, bob, 1);
 
         vm.prank(bob);
         staking.stake(10_000 ether);
@@ -170,12 +170,12 @@ contract FireSpiritTest is Test {
     function test_NewSpiritAfterTransferAndMoreBurns() public {
         vm.startPrank(alice);
         token.burn(10_000 ether);
-        spirit.transferFrom(alice, bob, 1);
+        acolyte.transferFrom(alice, bob, 1);
         token.burn(10_000 ether);
         vm.stopPrank();
 
-        assertEq(spirit.walletToTokenId(bob), 1);
-        assertEq(spirit.walletToTokenId(alice), 2);
-        assertEq(spirit.ownerOf(2), alice);
+        assertEq(acolyte.walletToTokenId(bob), 1);
+        assertEq(acolyte.walletToTokenId(alice), 2);
+        assertEq(acolyte.ownerOf(2), alice);
     }
 }

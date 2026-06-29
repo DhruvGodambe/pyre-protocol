@@ -16,7 +16,7 @@ import {IAllowanceTransfer} from "v4-periphery/lib/permit2/src/interfaces/IAllow
 
 import {PyreToken} from "../src/tokens/PyreToken.sol";
 import {PyreStaking} from "../src/staking/PyreStaking.sol";
-import {FireSpirit} from "../src/nft/FireSpirit.sol";
+import {Acolyte} from "../src/nft/Acolyte.sol";
 import {FeeLogicFacet} from "../src/hook/facets/FeeLogicFacet.sol";
 import {BurnFacet} from "../src/hook/facets/BurnFacet.sol";
 import {YieldDistributionFacet} from "../src/hook/facets/YieldDistributionFacet.sol";
@@ -34,7 +34,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 ///   Phase 4: Stake PYRE tokens
 ///   Phase 5: Second buy to generate staking yield via depositYield
 ///   Phase 6: Claim ETH yield from staking
-///   Phase 7: Direct PYRE burn to advance FireSpirit NFT stage
+///   Phase 7: Direct PYRE burn to advance Acolyte NFT stage
 ///   Phase 8: LP burn bonus - flag as LP burner, assert staking weight +20%
 ///   Phase 9: Second sell to verify cumulative hook-burn accounting
 contract FullWorkflowSmokeTest is Script {
@@ -65,7 +65,7 @@ contract FullWorkflowSmokeTest is Script {
         address swapRouter;
         address pyreToken;
         address staking;
-        address fireSpirit;
+        address acolyte;
         address hook;
         address team;
         uint24 fee;
@@ -135,7 +135,7 @@ contract FullWorkflowSmokeTest is Script {
         _assertSellFeeRouting(c, snapBeforeSell, snapAfterSell, sellFeeBps);
 
         // ── Phase 7 ─────────────────────────────────────────────────────────────
-        // _phase(7, "DIRECT PYRE BURN (FireSpirit progression)");
+        // _phase(7, "DIRECT PYRE BURN (Acolyte progression)");
         // _burnForNft(c);
 
         // ── Phase 8 ─────────────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ contract FullWorkflowSmokeTest is Script {
         _mdH2("Final State");
         GlobalSnapshot memory snapFinal = _snap(c);
         _writeSnapSection("State After All Phases", snapFinal);
-        _writeFireSpiritSection(c);
+        _writeAcolyteSection(c);
         _writeStakingSection(c);
 
         _mdH2("Summary");
@@ -172,7 +172,7 @@ contract FullWorkflowSmokeTest is Script {
         _mw(unicode"| Phase 4 \u2014 PYRE staking | \u2705 PASS |");
         _mw(unicode"| Phase 5 \u2014 Yield routing to staking | \u2705 PASS |");
         _mw(unicode"| Phase 6 \u2014 ETH yield claim | \u2705 PASS |");
-        _mw(unicode"| Phase 7 \u2014 Direct burn + FireSpirit | \u2705 PASS |");
+        _mw(unicode"| Phase 7 \u2014 Direct burn + Acolyte | \u2705 PASS |");
         _mw(unicode"| Phase 8 \u2014 LP burn bonus weight | \u2705 PASS |");
         _mw(unicode"| Phase 9 \u2014 Cumulative burn check | \u2705 PASS |");
         _mw("");
@@ -194,7 +194,7 @@ contract FullWorkflowSmokeTest is Script {
         c.swapRouter = vm.envAddress("SWAP_ROUTER");
         c.pyreToken = vm.envAddress("PYRE_TOKEN");
         c.staking = vm.envAddress("PYRE_STAKING");
-        c.fireSpirit = vm.envAddress("FIRE_SPIRIT");
+        c.acolyte = vm.envAddress("ACOLYTE");
         c.hook = vm.envAddress("PYRE_HOOK");
         c.team = vm.envAddress("PYRE_TEAM_WALLET");
         c.tester = vm.envAddress("PYRE_TESTER");
@@ -324,19 +324,19 @@ contract FullWorkflowSmokeTest is Script {
             _warn(unicode"No liquid PYRE to burn \u2014 skipping");
             return;
         }
-        uint256 pendingBefore = FireSpirit(c.fireSpirit).pendingBurn(c.tester);
+        uint256 pendingBefore = Acolyte(c.acolyte).pendingBurn(c.tester);
         uint256 supplyBefore = IERC20(c.pyreToken).totalSupply();
 
         PyreToken(c.pyreToken).burn(amount);
 
         uint256 supplyAfter = IERC20(c.pyreToken).totalSupply();
-        uint256 pendingAfter = FireSpirit(c.fireSpirit).pendingBurn(c.tester);
-        uint256 tokenId = FireSpirit(c.fireSpirit).walletToTokenId(c.tester);
+        uint256 pendingAfter = Acolyte(c.acolyte).pendingBurn(c.tester);
+        uint256 tokenId = Acolyte(c.acolyte).walletToTokenId(c.tester);
 
         _bullet(string.concat("Burned PYRE: ", vm.toString(amount)));
         _bullet(string.concat("Total supply delta: -", vm.toString(supplyBefore - supplyAfter)));
-        _bullet(string.concat("FireSpirit pendingBurn before: ", vm.toString(pendingBefore)));
-        _bullet(string.concat("FireSpirit pendingBurn after:  ", vm.toString(pendingAfter)));
+        _bullet(string.concat("Acolyte pendingBurn before: ", vm.toString(pendingBefore)));
+        _bullet(string.concat("Acolyte pendingBurn after:  ", vm.toString(pendingAfter)));
         _bullet(
             string.concat(
                 "Hook totalPyreBurned (swap fees only): ", vm.toString(BurnFacet(c.hook).getTotalPyreBurned())
@@ -344,14 +344,14 @@ contract FullWorkflowSmokeTest is Script {
         );
 
         if (tokenId != 0) {
-            FireSpirit.Stage stage = FireSpirit(c.fireSpirit).stageOf(c.tester);
-            _bullet(string.concat("FireSpirit tokenId: ", vm.toString(tokenId)));
-            _bullet(string.concat("FireSpirit stage (0=EMBER 1=FLAME 2=FORGE 3=PYRE): ", vm.toString(uint8(stage))));
+            Acolyte.Stage stage = Acolyte(c.acolyte).stageOf(c.tester);
+            _bullet(string.concat("Acolyte tokenId: ", vm.toString(tokenId)));
+            _bullet(string.concat("Acolyte stage (0=EMBER 1=FLAME 2=FORGE 3=PYRE): ", vm.toString(uint8(stage))));
             _bullet(
-                string.concat("Cumulative burn: ", vm.toString(FireSpirit(c.fireSpirit).spiritCumulativeBurn(tokenId)))
+                string.concat("Cumulative burn: ", vm.toString(Acolyte(c.acolyte).acolyteCumulativeBurn(tokenId)))
             );
         } else {
-            _bullet("FireSpirit not minted yet (need >=10,000 PYRE cumulative burn)");
+            _bullet("Acolyte not minted yet (need >=10,000 PYRE cumulative burn)");
         }
 
         require(supplyBefore - supplyAfter == amount, "burn did not reduce supply correctly");
@@ -366,7 +366,7 @@ contract FullWorkflowSmokeTest is Script {
             return;
         }
 
-        bool alreadyFlagged = FireSpirit(c.fireSpirit).lpBurners(c.tester);
+        bool alreadyFlagged = Acolyte(c.acolyte).lpBurners(c.tester);
         uint256 weightBefore = PyreStaking(c.staking).weightOf(c.tester);
 
         _bullet(string.concat("Staked balance: ", vm.toString(stakedBalance)));
@@ -601,15 +601,15 @@ contract FullWorkflowSmokeTest is Script {
         _mw(string.concat("| ", name, " | `", vm.toString(b), "` | `", vm.toString(a), "` | **", delta, "** |"));
     }
 
-    function _writeFireSpiritSection(Config memory c) internal view {
-        console2.log("  --- FIRE SPIRIT STATE ---");
-        uint256 tokenId = FireSpirit(c.fireSpirit).walletToTokenId(c.tester);
+    function _writeAcolyteSection(Config memory c) internal view {
+        console2.log("  --- ACOLYTE STATE ---");
+        uint256 tokenId = Acolyte(c.acolyte).walletToTokenId(c.tester);
         console2.log("  tokenId", tokenId);
         if (tokenId != 0) {
-            console2.log("  stage (0=EMBER 1=FLAME 2=FORGE 3=PYRE)", uint8(FireSpirit(c.fireSpirit).stageOf(c.tester)));
-            console2.log("  cumulativeBurn", FireSpirit(c.fireSpirit).spiritCumulativeBurn(tokenId));
+            console2.log("  stage (0=EMBER 1=FLAME 2=FORGE 3=PYRE)", uint8(Acolyte(c.acolyte).stageOf(c.tester)));
+            console2.log("  acolyteCumulativeBurn", Acolyte(c.acolyte).acolyteCumulativeBurn(tokenId));
         } else {
-            console2.log("  pendingBurn (toward EMBER 10k PYRE)", FireSpirit(c.fireSpirit).pendingBurn(c.tester));
+            console2.log("  pendingBurn (toward EMBER 10k PYRE)", Acolyte(c.acolyte).pendingBurn(c.tester));
         }
     }
 
@@ -657,7 +657,7 @@ contract FullWorkflowSmokeTest is Script {
         _mw(string.concat("| swapRouter | `", vm.toString(c.swapRouter), "` |"));
         _mw(string.concat("| pyreToken | `", vm.toString(c.pyreToken), "` |"));
         _mw(string.concat("| staking | `", vm.toString(c.staking), "` |"));
-        _mw(string.concat("| fireSpirit | `", vm.toString(c.fireSpirit), "` |"));
+        _mw(string.concat("| acolyte | `", vm.toString(c.acolyte), "` |"));
         _mw(string.concat("| hook | `", vm.toString(c.hook), "` |"));
         _mw(string.concat("| team | `", vm.toString(c.team), "` |"));
         _mw(string.concat("| tester | `", vm.toString(c.tester), "` |"));
@@ -685,7 +685,7 @@ contract FullWorkflowSmokeTest is Script {
         console2.log("  swapRouter  ", c.swapRouter);
         console2.log("  pyreToken   ", c.pyreToken);
         console2.log("  staking     ", c.staking);
-        console2.log("  fireSpirit  ", c.fireSpirit);
+        console2.log("  acolyte     ", c.acolyte);
         console2.log("  hook        ", c.hook);
         console2.log("  team        ", c.team);
         console2.log("  tester      ", c.tester);

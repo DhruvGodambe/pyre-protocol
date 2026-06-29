@@ -9,7 +9,6 @@ import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "../v4/types/BeforeSwapDel
 import {LibFeeLogic} from "../libraries/LibFeeLogic.sol";
 import {LibBurn} from "../libraries/LibBurn.sol";
 import {LibYieldDistribution} from "../libraries/LibYieldDistribution.sol";
-import {LibLpBurn} from "../libraries/LibLpBurn.sol";
 
 /// @title SwapHookFacet
 /// @notice Uniswap v4 swap hook entry points for the PYRE diamond proxy.
@@ -75,27 +74,14 @@ contract SwapHookFacet is IHooks {
         return IHooks.beforeRemoveLiquidity.selector;
     }
 
-    /// @notice Called by the pool manager after liquidity is removed.
-    ///         If hookData encodes `true`, the LP position is treated as a burn:
-    ///         the removed tokens are taken from the pool and destroyed/routed,
-    ///         the sender is flagged in FireSpirit for the +20% yield bonus,
-    ///         and the returned hookDelta signals that the LP receives nothing.
-    ///         Without the flag, this is a no-op and the LP receives their tokens normally.
     function afterRemoveLiquidity(
-        address sender,
-        PoolKey calldata key,
+        address,
+        PoolKey calldata,
         ModifyLiquidityParams calldata,
-        BalanceDelta delta,
         BalanceDelta,
-        bytes calldata hookData
-    ) external returns (bytes4, BalanceDelta) {
-        LibFeeLogic.validateHookCall(key);
-
-        if (hookData.length >= 32 && abi.decode(hookData, (bool))) {
-            BalanceDelta hookDelta = LibLpBurn.processLpBurn(sender, delta);
-            return (IHooks.afterRemoveLiquidity.selector, hookDelta);
-        }
-
+        BalanceDelta,
+        bytes calldata
+    ) external pure returns (bytes4, BalanceDelta) {
         return (IHooks.afterRemoveLiquidity.selector, BalanceDeltaLibrary.ZERO_DELTA);
     }
 
