@@ -163,3 +163,12 @@ contract DeployAll is Script, PyreHookDiamondDeployer {
         deployment.immolatedGate = new ImmolatedGate(address(deployment.token), address(deployment.acolyte));
     }
 }
+
+//source .env && forge script script/DeployAll.s.sol:DeployAll --rpc-url $RPC_URL --private-key $DEPLOYER_PRIVATE_KEY  --broadcast --verify
+
+// source .env && forge script script/DeployAll.s.sol:DeployAll \
+//  --rpc-url $RPC_URL \
+//  --private-key $DEPLOYER_PRIVATE_KEY \
+//  --broadcast \
+//  --verify \
+//  --slow
